@@ -1,6 +1,8 @@
+#pragma once
 #include <memory>
 #include <type_traits>
 #include <functional>
+#include "union_data.h"
 
 namespace Yc
 {
@@ -16,16 +18,7 @@ namespace Yc
 		template<class T>
 		struct binary_tree_node: binary_tree_node_base
 		{
-			union data_t
-			{
-				T data;
-				template<class = T>
-					requires (!std::is_trivial_v<T>)
-				data_t()
-				{}
-				~data_t()
-				{}
-			}data;
+			data_t<T> data;
 		};
 		template<class T>
 		class binary_tree_edge_const_proxy;
@@ -362,13 +355,21 @@ namespace Yc
 				T& t = (T&)*p;
 				if constexpr (requires{
 					t = std::invoke(vg, h);
-				})
+				} && noexcept(t = std::invoke(vg, h)))
 				{
 					t = std::invoke(vg, h);
 				}
-				else
+				else if constexpr (requires{
+					t = T{ std::invoke(vg,h) };
+				} && noexcept(t = T{ std::invoke(vg,h) }))
 				{
 					t = T{ std::invoke(vg,h) };
+				}
+				else
+				{
+					std::allocator_traits<Alloc>::destroy(alloc, (T*)p.operator->());
+					static_assert(std::is_nothrow_constructible_v<T, decltype(std::invoke(vg, h))>);
+					std::allocator_traits<Alloc>::construct(alloc, (T*)p.operator->(), std::invoke(vg, h));
 				}
 			}
 			else
@@ -471,7 +472,9 @@ namespace Yc
 		binary_tree(binary_tree&& b)noexcept :
 			root_ptr{ std::exchange(b.root_ptr, {}) }, alloc{std::move(b.alloc)}
 		{}
-		binary_tree& operator=(binary_tree&& b)
+		binary_tree& operator=(binary_tree&& b)noexcept(
+			std::allocator_traits<Alloc>::propagate_on_container_move_assignment::value ||
+			std::allocator_traits<Alloc>::is_always_equal::value)
 		{
 			if constexpr
 				(std::allocator_traits<Alloc>::propagate_on_container_move_assignment::value)
@@ -492,7 +495,15 @@ namespace Yc
 					{
 						return (T&&)*p;
 					};
-				recur_and_overwrite(root(), vg, &edge_proxy::get_children, b.root());
+				if constexpr (std::is_nothrow_assignable_v<T>)
+				{
+					recur_and_overwrite(root(), vg, &edge_proxy::get_children, b.root());
+				}
+				else
+				{
+					binary_tree tmp{ vg, &edge_proxy::get_children, b.root(), alloc};
+					swap(tmp);
+				}
 				return *this;
 			}
 		}
@@ -737,18 +748,7 @@ namespace Yc
 		template<class T>
 		struct parent_aware_binary_tree_node : parent_aware_binary_tree_node_base
 		{
-			union data_t
-			{
-				T data;
-				template<class = T>
-					requires (!std::is_trivial_v<T>)
-				data_t()
-				{
-				}
-				~data_t()
-				{
-				}
-			}data;
+			data_t<T> data;
 		};
 		template<class T>
 		class parent_aware_binary_tree_edge_const_proxy;
@@ -1162,13 +1162,21 @@ namespace Yc
 				T& t = (T&)*p;
 				if constexpr (requires{
 					t = std::invoke(vg, h);
-				})
+				} && noexcept(t = std::invoke(vg, h)))
 				{
 					t = std::invoke(vg, h);
 				}
-				else
+				else if constexpr (requires{
+					t = T{ std::invoke(vg,h) };
+				} && noexcept(t = T{ std::invoke(vg,h) }))
 				{
 					t = T{ std::invoke(vg,h) };
+				}
+				else
+				{
+					std::allocator_traits<Alloc>::destroy(alloc, (T*)p.operator->());
+					static_assert(std::is_nothrow_constructible_v<T, decltype(std::invoke(vg, h))>);
+					std::allocator_traits<Alloc>::construct(alloc, (T*)p.operator->(), std::invoke(vg, h));
 				}
 			}
 			else
@@ -1280,7 +1288,15 @@ namespace Yc
 					{
 						return (T&&)*p;
 					};
-				recur_and_overwrite(root(), vg, &edge_proxy::get_children, b.root());
+				if constexpr (std::is_nothrow_move_assignable_v)
+				{
+					recur_and_overwrite(root(), vg, &edge_proxy::get_children, b.root());
+				}
+				else
+				{
+					parent_aware_binary_tree tmp{vg, &edge_proxy::get_children, b.root(), alloc};
+					swap(tmp);
+				}
 				return *this;
 			}
 		}
@@ -1440,7 +1456,7 @@ namespace Yc
 			std::swap((*l.ptr)->parent, (*r.ptr)->parent);
 			std::swap(*l.ptr, *r.ptr);
 		}
-		void swap(parent_aware_binary_tree& other)
+		void swap(parent_aware_binary_tree& other)noexcept
 		{
 			if constexpr (std::allocator_traits<Alloc>::propagate_on_container_swap::value)
 			{
