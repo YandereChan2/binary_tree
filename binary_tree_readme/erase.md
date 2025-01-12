@@ -6,7 +6,7 @@ void erase(edge_const_proxy p)noexcept
 
 如果存在，则销毁位于 `p` 所指代的 _树位置_ 上的 _二叉树_ 。调用后，`p` 所指代的 _树位置_ 依然有效，但是其上不再存在 _二叉树_ 。换言之， `p.null() == true` 。
 
-如果 `p` 不从 `root()` 可达，或者 `p` 不指代合法的 _树位置_ ，行为未定义。
+如果 `p` 不从 `root()` 可达，或者 `p` 不指代合法的 _树位置_ ，行为[未定义](https://zh.cppreference.com/w/cpp/language/ub)。
 
 ## 参数
 

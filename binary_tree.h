@@ -312,7 +312,16 @@ namespace Yc
 			class ValueGetter,
 			class ChildrenGetter,
 			class InitializeHandle
-		>
+		> requires requires (
+			edge_const_proxy p,
+			ValueGetter vg,
+			ChildrenGetter cg,
+			InitializeHandle h
+			) {
+			emplace(p, std::invoke(vg, h));
+			//auto&& [lh, rh] = std::invoke(cg, h);
+			(bool)h;
+		}
 		void recur_and_write_impl(
 			edge_const_proxy p,
 			ValueGetter& vg,
@@ -394,6 +403,7 @@ namespace Yc
 			) {
 			emplace(p, std::invoke(vg, h));
 			//auto&& [lh, rh] = std::invoke(cg, h);
+			(bool)h;
 			}
 		binary_tree recur_and_write(
 			edge_const_proxy p,
@@ -418,6 +428,7 @@ namespace Yc
 			) {
 			emplace(p, std::invoke(vg, h));
 			//auto&& [lh, rh] = std::invoke(cg, h);
+			(bool)h;
 		}
 		void recur_and_overwrite(
 			edge_const_proxy p,
