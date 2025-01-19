@@ -18,15 +18,15 @@ binary_tree(binary_tree&& b)noexcept; //(4)
 
 ```C++
 template<
-	class ValueGetter,
-	class ChildrenGetter,
-	class InitializeHandle
+    class ValueGetter,
+    class ChildrenGetter,
+    class InitializeHandle
 >
 binary_tree(
-	ValueGetter vg,
-	ChildrenGetter cg,
-	InitializeHandle h,
-	const Alloc& a = {}
+    ValueGetter vg,
+    ChildrenGetter cg,
+    InitializeHandle h,
+    const Alloc& a = {}
 ); //(5)
 ```
 

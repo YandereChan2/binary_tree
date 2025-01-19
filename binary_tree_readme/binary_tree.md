@@ -18,6 +18,8 @@ template<
 
 在本库中，使用 `edge_proxy` 指代一个 _树位置_ ，使用 `node_proxy` 指代一个 _二叉树_ 。
 
+如果上面的定义让人难以理解，可以先查看[该文档](easy_for_understand.md)。
+
 ## 模板参数
 
 | | |
@@ -33,8 +35,8 @@ template<
 |`allocator_type`|`Alloc`|
 |[`edge_proxy`](edge_proxy/edge_proxy.md)|表示 _树位置_ 的轻量级代理对象。|
 |[`edge_const_proxy`](edge_proxy/edge_proxy.md)|表示 _树位置_ 的轻量级代理对象。对这个位置的树的元素提供只读访问|
-|`node_proxy`|表示 _二叉树_ 的轻量级代理对象。|
-|`node_const_proxy`|表示 _二叉树_ 的轻量级代理对象。对这个树的元素提供只读访问|
+|[`node_proxy`](node_proxy/node_proxy.md)|表示 _二叉树_ 的轻量级代理对象。|
+|[`node_const_proxy`](node_proxy/node_proxy.md)|表示 _二叉树_ 的轻量级代理对象。对这个树的元素提供只读访问|
 
 ## 成员函数
 
@@ -48,8 +50,8 @@ template<
 
 |||
 |:-|:-|
-|`root`<br>`croot`|返回 `binary_tree` 对象内部的 _树位置_ 的代理。（公开成员函数）|
-|`nroot`<br>`cnroot`|返回处于 `binary_tree` 对象内部的 _树位置_ 上的 _二叉树_ 的代理。（公开成员函数）|
+|[`root`<br>`croot`](root.md)|返回 `binary_tree` 对象内部的 _树位置_ 的代理。（公开成员函数）|
+|[`nroot`<br>`cnroot`](nroot.md)|返回处于 `binary_tree` 对象内部的 _树位置_ 上的 _二叉树_ 的代理。（公开成员函数）|
 
 ### 修改器
 

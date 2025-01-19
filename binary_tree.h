@@ -82,6 +82,7 @@ namespace Yc
 			template<class T,class Alloc>
 			friend class binary_tree;
 			friend class binary_tree_node_proxy<T>;
+			using value_type = T;
 		};
 		template<class T>
 		struct std::hash<binary_tree_edge_proxy<T>>
@@ -148,6 +149,7 @@ namespace Yc
 			friend struct std::hash<binary_tree_edge_const_proxy>;
 			template<class T,class Alloc>
 			friend class binary_tree;
+			using value_type = const T;
 		};
 		template<class T>
 		struct std::hash<binary_tree_edge_const_proxy<T>>
@@ -205,6 +207,7 @@ namespace Yc
 			}
 			friend struct std::hash<binary_tree_node_proxy>;
 			friend class binary_tree_node_const_proxy<T>;
+			using value_type = T;
 		};
 		template<class T>
 		struct std::hash<binary_tree_node_proxy<T>>
@@ -265,6 +268,7 @@ namespace Yc
 				l.ptr == r.ptr;
 			}
 			friend struct std::hash<binary_tree_node_const_proxy>;
+			using value_type = const T;
 		};
 		template<class T>
 		struct std::hash<binary_tree_node_const_proxy<T>>
@@ -506,7 +510,7 @@ namespace Yc
 					{
 						return (T&&)*p;
 					};
-				if constexpr (std::is_nothrow_assignable_v<T>)
+				if constexpr (std::is_nothrow_move_assignable_v<T>)
 				{
 					recur_and_overwrite(root(), vg, &edge_proxy::get_children, b.root());
 				}
@@ -520,7 +524,7 @@ namespace Yc
 		}
 		bool empty()const noexcept
 		{
-			return root == nullptr;
+			return root_ptr == nullptr;
 		}
 		edge_proxy root()noexcept
 		{
@@ -585,15 +589,16 @@ namespace Yc
 			{
 				struct guard_t
 				{
+					binary_tree* t;
 					node_ptr ptr;
 					~guard_t()
 					{
 						if (ptr != nullptr)
 						{
-							deallocate_node(ptr);
+							t->deallocate_node(ptr);
 						}
 					}
-				}guard{new_node};
+				}guard{this,new_node};
 				std::allocator_traits<Alloc>::
 					construct(na, &((node_type*)new_node)->data.data, std::forward<Args>(args)...);
 				guard.ptr = nullptr;
@@ -841,6 +846,7 @@ namespace Yc
 			template<class T, class Alloc>
 			friend class parent_aware_binary_tree;
 			friend class parent_aware_binary_tree_node_proxy<T>;
+			using value_type = T;
 		};
 		template<class T>
 		struct std::hash<parent_aware_binary_tree_edge_proxy<T>>
@@ -925,6 +931,7 @@ namespace Yc
 			friend struct std::hash<parent_aware_binary_tree_edge_const_proxy>;
 			template<class T, class Alloc>
 			friend class parent_aware_binary_tree;
+			using value_type = const T;
 		};
 		template<class T>
 		struct std::hash<parent_aware_binary_tree_edge_const_proxy<T>>
@@ -1003,6 +1010,7 @@ namespace Yc
 					return { &tmp->right };
 				}
 			}
+			using value_type = T;
 		};
 		template<class T>
 		struct std::hash<parent_aware_binary_tree_node_proxy<T>>
@@ -1083,6 +1091,7 @@ namespace Yc
 					return { &tmp->right };
 				}
 			}
+			using value_type = const T;
 		};
 		template<class T>
 		struct std::hash<parent_aware_binary_tree_node_const_proxy<T>>
@@ -1285,21 +1294,21 @@ namespace Yc
 			{
 				using namespace std;
 				swap(alloc, b.alloc);
-				swap_sub_tree(root, b.root());
+				swap_sub_tree(root(), b.root());
 				return *this;
 			}
 			else
 			{
 				if (alloc == b.alloc)
 				{
-					swap_sub_tree(root, b.root());
+					swap_sub_tree(root(), b.root());
 					return;
 				}
 				auto vg = [](edge_proxy p) -> T&&
 					{
 						return (T&&)*p;
 					};
-				if constexpr (std::is_nothrow_move_assignable_v)
+				if constexpr (std::is_nothrow_move_assignable_v<T>)
 				{
 					recur_and_overwrite(root(), vg, &edge_proxy::get_children, b.root());
 				}
@@ -1327,7 +1336,7 @@ namespace Yc
 		}
 		bool empty()const noexcept
 		{
-			return parent_of_root.left == nullptr;
+			return parent_of_root.left() == nullptr;
 		}
 		edge_proxy root()noexcept
 		{
@@ -1335,11 +1344,11 @@ namespace Yc
 		}
 		edge_const_proxy root()const noexcept
 		{
-			return { &parent_of_root.left };
+			return { &parent_of_root.left()};
 		}
 		edge_const_proxy croot()const noexcept
 		{
-			return { &parent_of_root.left };
+			return { &parent_of_root.left()};
 		}
 		node_proxy nroot()noexcept
 		{
@@ -1400,15 +1409,16 @@ namespace Yc
 			{
 				struct guard_t
 				{
+					parent_aware_binary_tree* t;
 					node_ptr ptr;
 					~guard_t()
 					{
 						if (ptr != nullptr)
 						{
-							deallocate_node(ptr);
+							t->deallocate_node(ptr);
 						}
 					}
-				}guard{ new_node };
+				}guard{ this, new_node };
 				std::allocator_traits<Alloc>::
 					construct(na, &((node_type*)new_node)->data.data, std::forward<Args>(args)...);
 				guard.ptr = nullptr;

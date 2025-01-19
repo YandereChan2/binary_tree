@@ -2,30 +2,30 @@
 
 ```C++
 template<
-	class ValueGetter,
-	class ChildrenGetter,
-	class InitializeHandle
+    class ValueGetter,
+    class ChildrenGetter,
+    class InitializeHandle
 >
 binary_tree recur_and_write(
-			edge_const_proxy p,
-			ValueGetter vg,
-			ChildrenGetter cg,
-			InitializeHandle h
-		) //(1)
+    edge_const_proxy p,
+    ValueGetter vg,
+    ChildrenGetter cg,
+    InitializeHandle h
+) //(1)
 ```
 
 ```C++
 template<
-	class ValueGetter,
-	class ChildrenGetter,
-	class InitializeHandle
+    class ValueGetter,
+    class ChildrenGetter,
+    class InitializeHandle
 >
 void recur_and_overwrite(
-			edge_const_proxy p,
-			ValueGetter vg,
-			ChildrenGetter cg,
-			InitializeHandle h
-		) //(2)
+    edge_const_proxy p,
+    ValueGetter vg,
+    ChildrenGetter cg,
+    InitializeHandle h
+) //(2)
 ```
 
 尝试在 `p` 所指代的 _树位置_ 建立 _二叉树_ ，消耗资源句柄 `h` 进行递归式构建，使用 `vg` 获取句柄所指向的值，使用 `cg` 获取和 `h` 关联的两个子资源的句柄。

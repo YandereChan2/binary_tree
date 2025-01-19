@@ -11,7 +11,7 @@ binary_tree emplace(edge_const_proxy p, Args&&... args);
 
 如果 `p` 不从 `root()` 可达，那么行为[未定义](https://zh.cppreference.com/w/cpp/language/ub)。
 
-任何既有代理对象都不会失效。
+任何既有代理对象和元素引用都不会失效。
 
 ## 参数
 
