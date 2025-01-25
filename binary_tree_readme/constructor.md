@@ -58,3 +58,108 @@ binary_tree(
 如果不能分配内存，则抛出 [`std::bad_alloc`](https://zh.cppreference.com/w/cpp/memory/new/bad_alloc) 。
 
 构建元素或者取得句柄等动作可能产生别的异常。
+
+## 示例
+
+下面这个例子演示了使用复制、移动、递归三种方法构造二叉树。
+
+```C++
+#include "binary_tree.h"
+#include <iostream>
+struct simple_binary_tree_node
+{
+    simple_binary_tree_node* left{};
+    simple_binary_tree_node* right{};
+    int val;
+    std::pair<simple_binary_tree_node*, simple_binary_tree_node*> children()const noexcept
+    {
+    return { left,right };
+    }
+};
+template<class H, class F>
+void print_sub_tree(H root,F cg)
+{
+    if (root)
+    {
+        std::cout << '{'<< *root;
+        auto [l, r] = std::invoke(cg, root);
+        print_sub_tree(l, cg);
+        print_sub_tree(r, cg);
+        std::cout << '}';
+    }
+}
+int main()
+{
+    std::cout << "================================================================\n";
+    auto cg = &Yc::binary_tree<int>::edge_proxy::get_children;
+    {
+        simple_binary_tree_node tree[]{
+                                {tree + 1,tree + 2,1},
+        //                      |
+        //              ---------------------
+        //              |                   |
+                        {{},{},2},          {{tree+3},{tree+4},3},
+        //              |
+        //      -----------------
+        //      |               |
+                { {},{},4 },    {{},{},5}
+        };
+        Yc::binary_tree<int> b{&simple_binary_tree_node::val,&simple_binary_tree_node::children,&tree[0]};
+        print_sub_tree(b.root(), cg);
+    }
+    std::cout << "\n================================================================\n";
+    {
+        simple_binary_tree_node tree[]{
+                                {tree + 1,tree + 2,1},
+        //                      |
+        //              ---------------------
+        //              |                   |
+                        {{},{},2},          {{tree+3},{tree+4},3},
+        //              |
+        //      -----------------
+        //      |               |
+                { {},{},4 },    {{},{},5}
+        };
+        Yc::binary_tree<int> b{ &simple_binary_tree_node::val,&simple_binary_tree_node::children,&tree[0] };
+        Yc::binary_tree<int> cp{ b };
+        print_sub_tree(b.root(), cg);
+        std::cout << '\n';
+        print_sub_tree(cp.root(), cg);
+    }
+    std::cout << "\n================================================================\n";
+    {
+        simple_binary_tree_node tree[]{
+                                {tree + 1,tree + 2,1},
+        //                      |
+        //              ---------------------
+        //              |                   |
+                        {{},{},2},          {{tree+3},{tree+4},3},
+        //              |
+        //      -----------------
+        //      |               |
+                { {},{},4 },    {{},{},5}
+        };
+        Yc::binary_tree<int> b{ &simple_binary_tree_node::val,&simple_binary_tree_node::children,&tree[0] };
+        Yc::binary_tree<int> cp{ std::move(b) };
+        print_sub_tree(b.root(), cg);
+        std::cout << '\n';
+        print_sub_tree(cp.root(), cg);
+    }
+    std::cout << "\n================================================================\n";
+}
+```
+
+### 输出
+
+```plain text
+================================================================
+{1{2}{3{4}{5}}}
+================================================================
+{1{2}{3{4}{5}}}
+{1{2}{3{4}{5}}}
+================================================================
+
+{1{2}{3{4}{5}}}
+================================================================
+
+```
