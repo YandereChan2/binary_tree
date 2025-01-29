@@ -39,6 +39,74 @@ binary_tree insert(edge_const_proxy p, T&& value); //(2)
 
 ## 异常
 
-若抛出了异常（例如由构造函数），则保留 `binary_tree` 不修改，如同未曾调用过此函数（强异常保证）。
+若抛出了异常（例如由构造函数），则保留 `binary_tree` 不修改，如同未曾调用过此函数（[强异常保证](https://zh.cppreference.com/w/cpp/language/exceptions)）。
 
 如果不能分配内存，则抛出 [`std::bad_alloc`](https://zh.cppreference.com/w/cpp/memory/new/bad_alloc) 。
+
+## 示例
+
+```C++
+#include "binary_tree.h"
+#include <iostream>
+struct simple_binary_tree_node
+{
+    simple_binary_tree_node* left{};
+    simple_binary_tree_node* right{};
+    int val;
+    std::pair<simple_binary_tree_node*, simple_binary_tree_node*> children()const noexcept
+    {
+        return { left,right };
+    }
+};
+template<class H, class F>
+void print_sub_tree(H root,F cg)
+{
+    if (root)
+    {
+        std::cout << '{'<< *root;
+        auto [l, r] = std::invoke(cg, root);
+        print_sub_tree(l, cg);
+        print_sub_tree(r, cg);
+        std::cout << '}';
+    }
+}
+int main()
+{
+    std::cout << "================================================================\n";
+    auto cg = &Yc::binary_tree<int>::edge_proxy::get_children;
+    {
+        simple_binary_tree_node tree[]{
+                                                {tree + 1,tree + 2,1},
+                        //                      |
+                        //              ---------------------
+                        //              |                    |
+                                        {{},{},2},           {{tree+3},{tree+4},3},
+                        //                                   |
+                        //                          -----------------
+                        //                          |                |
+                                                    { {},{},4 },    {{},{},5}
+        };
+        Yc::binary_tree<int> b{&simple_binary_tree_node::val,&simple_binary_tree_node::children,&tree[0]};
+        print_sub_tree(b.root(), cg);
+        std::cout << '\n';
+        auto p = b.root();
+        p.go_right();
+        auto sub_tree = b.insert(p, 8); //通过返回值给出原先的子树
+        print_sub_tree(b.root(), cg);
+        std::cout << '\n';
+        print_sub_tree(sub_tree.root(), cg);
+    }
+    std::cout << "\n================================================================\n";
+}
+```
+
+### 输出
+
+```plain text
+================================================================
+{1{2}{3{4}{5}}}
+{1{2}{8}}
+{3{4}{5}}
+================================================================
+
+```
