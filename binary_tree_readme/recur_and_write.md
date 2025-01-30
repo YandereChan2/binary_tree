@@ -37,7 +37,7 @@ void recur_and_overwrite(
 
 _`recur_and_write_impl`_ 会首先把传入的句柄 `h` [按语境转换](https://zh.cppreference.com/w/cpp/language/implicit_conversion)成 `bool` ，如果为 `false` 则立即返回，否则首先使用 [`std::invoke(vg, h)`](https://zh.cppreference.com/w/cpp/utility/functional/invoke) 转发给构造函数在 `p` 位置创建新的 _二叉树_ ，然后使用[结构化绑定](https://zh.cppreference.com/w/cpp/language/structured_binding) [`auto [lh,rh] = std::invoke(cg, h)`](https://zh.cppreference.com/w/cpp/utility/functional/invoke) 来获取和 `h` 相关联的子资源，并递归地使用 _`recur_and_write_impl`_ 在该 _二叉树_ 内部的左右两个树位置消耗 `lh` 和 `rh` 创建 _二叉树_ 。
 
-对于函数 (2) 的操作类似，只是不会转移 _二叉树_ ，而是在`h` 按语境转换成 `bool` 得到 `true` 时按照实际情况进行赋值或者原地析构再构造，在 `false` 时使用 [`erase(p)`](erase.md) 销毁该 _树位置_ 的 _二叉树_ 。
+对于函数 (2) 的操作类似，只是不会转移 _二叉树_ ，而是在 `h` 按语境转换成 `bool` 得到 `true` 时按照实际情况进行赋值或者原地析构再构造，在 `false` 时使用 [`erase(p)`](erase.md) 销毁该 _树位置_ 的 _二叉树_ 。
 
 函数 (2) 在遇到 _树位置_ 存在 _二叉树_ 时会首先尝试使用赋值运算符修改该位置的元素，如果该调用非良构或者潜在抛出，那么会尝试构造临时对象并调用赋值运算符，如果该过程非良构或者潜在抛出，那么会尝试析构并原位构造元素，如果该过程非良构或者潜在抛出那么程序非良构。
 
