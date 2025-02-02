@@ -311,22 +311,22 @@ namespace Yc
         struct get_children_t
         {
             template<class T>
-            auto operator()(binary_tree_edge_proxy<T> p)noexcept
+            auto operator()(binary_tree_edge_proxy<T> p)const noexcept
             {
                 return p.get_children();
             }
             template<class T>
-            auto operator()(binary_tree_edge_const_proxy<T> p)noexcept
+            auto operator()(binary_tree_edge_const_proxy<T> p)const noexcept
             {
                 return p.get_children();
             }
             template<class T>
-            auto operator()(binary_tree_node_proxy<T> p)noexcept
+            auto operator()(binary_tree_node_proxy<T> p)const noexcept
             {
                 return p.get_children();
             }
             template<class T>
-            auto operator()(binary_tree_node_const_proxy<T> p)noexcept
+            auto operator()(binary_tree_node_const_proxy<T> p)const noexcept
             {
                 return p.get_children();
             }
