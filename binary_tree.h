@@ -215,7 +215,7 @@ namespace Yc
             }
             std::pair<binary_tree_edge_proxy<T>, binary_tree_edge_proxy<T>> get_children()const
             {
-                return { {&ptr->left},{&ptr->right} };
+                return { {&ptr->left()},{&ptr->right()}};
             }
             friend bool operator==(binary_tree_node_proxy l, binary_tree_node_proxy r)noexcept
             {
@@ -284,7 +284,7 @@ namespace Yc
             }
             std::pair<binary_tree_edge_const_proxy<T>, binary_tree_edge_const_proxy<T>> get_children()const
             {
-                return { {&ptr->left},{&ptr->right} };
+                return { {&ptr->left},{&ptr->right}};
             }
             friend bool operator==(binary_tree_node_const_proxy l, binary_tree_node_const_proxy r)noexcept
             {
@@ -498,7 +498,7 @@ namespace Yc
                     return *p;
                 };
             recur_and_write
-                (root(), copier, &edge_const_proxy::get_children, b.croot());
+            (root(), copier, &edge_const_proxy::get_children, b.croot());
         }
         binary_tree& operator=(const binary_tree& b)
         {
@@ -560,15 +560,15 @@ namespace Yc
         }
         edge_proxy root()noexcept
         {
-            return { (node_ptr*) & root_ptr };
+            return { (node_ptr*)&root_ptr };
         }
         edge_const_proxy root()const noexcept
         {
-            return { (node_ptr*) & root_ptr };
+            return { (node_ptr*)&root_ptr };
         }
         edge_const_proxy croot()const noexcept
         {
-            return { (node_ptr*) & root_ptr };
+            return { (node_ptr*)&root_ptr };
         }
         node_proxy nroot()noexcept
         {
@@ -797,7 +797,7 @@ namespace Yc
                 ++p;//那么按理说现在是右节点
                 if (*p == nullptr)
                 {
-                //右节点显然可以nullptr
+                    //右节点显然可以nullptr
                     ++p;
                     return (parent_aware_binary_tree_node_base*)(p - 2);
                 }
@@ -805,14 +805,14 @@ namespace Yc
                 parent_aware_binary_tree_node_base* tmp = (parent_aware_binary_tree_node_base*)(p - 1);
                 if ((*p)->parent() != tmp)
                 {
-                //不一致说明原先就是右节点，现在已经偏到父节点了
+                    //不一致说明原先就是右节点，现在已经偏到父节点了
                     return (parent_aware_binary_tree_node_base*)(p - 2);
                 }
                 ++p;//再偏一格
                 return (parent_aware_binary_tree_node_base*)(p - 2);
             }
         }
-        
+
         template<class T>
         struct parent_aware_binary_tree_node : parent_aware_binary_tree_node_base
         {
@@ -1037,22 +1037,22 @@ namespace Yc
             }
             parent_aware_binary_tree_node_proxy& go_left()noexcept
             {
-                ptr = (parent_aware_binary_tree_node<T>*)ptr->left;
+                ptr = (parent_aware_binary_tree_node<T>*)ptr->left();
                 return *this;
             }
             parent_aware_binary_tree_node_proxy& go_right()noexcept
             {
-                ptr = (parent_aware_binary_tree_node<T>*)ptr->right;
+                ptr = (parent_aware_binary_tree_node<T>*)ptr->right();
                 return *this;
             }
             parent_aware_binary_tree_node_proxy& go_up()noexcept
             {
-                ptr = (parent_aware_binary_tree_node<T>*)ptr->parent;
+                ptr = (parent_aware_binary_tree_node<T>*)ptr->parent();
                 return *this;
             }
             std::pair<parent_aware_binary_tree_edge_proxy<T>, parent_aware_binary_tree_edge_proxy<T>> get_children()const
             {
-                return { {&ptr->left},{&ptr->right} };
+                return { {&ptr->left()},{&ptr->right()}};
             }
             friend bool operator==(parent_aware_binary_tree_node_proxy l, parent_aware_binary_tree_node_proxy r)noexcept
             {
@@ -1064,14 +1064,14 @@ namespace Yc
             friend class parent_aware_binary_tree;
             operator parent_aware_binary_tree_edge_proxy<T>()const noexcept
             {
-                parent_aware_binary_tree_node<T>* tmp = (parent_aware_binary_tree_node<T>*)ptr->parent;
-                if (tmp->left == ptr)
+                parent_aware_binary_tree_node<T>* tmp = (parent_aware_binary_tree_node<T>*)ptr->parent();
+                if (tmp->left() == ptr)
                 {
-                    return { &tmp->left };
+                    return { &tmp->left()};
                 }
                 else
                 {
-                    return { &tmp->right };
+                    return { &tmp->right()};
                 }
             }
             using value_type = T;
@@ -1125,22 +1125,22 @@ namespace Yc
             }
             parent_aware_binary_tree_node_const_proxy& go_left()noexcept
             {
-                ptr = (parent_aware_binary_tree_node<T>*)ptr->left;
+                ptr = (parent_aware_binary_tree_node<T>*)ptr->left();
                 return *this;
             }
             parent_aware_binary_tree_node_const_proxy& go_right()noexcept
             {
-                ptr = (parent_aware_binary_tree_node<T>*)ptr->right;
+                ptr = (parent_aware_binary_tree_node<T>*)ptr->right();
                 return *this;
             }
             parent_aware_binary_tree_node_const_proxy& go_up()noexcept
             {
-                ptr = (parent_aware_binary_tree_node<T>*)ptr->parent;
+                ptr = (parent_aware_binary_tree_node<T>*)ptr->parent();
                 return *this;
             }
             std::pair<parent_aware_binary_tree_edge_const_proxy<T>, parent_aware_binary_tree_edge_const_proxy<T>> get_children()const
             {
-                return { {&ptr->left},{&ptr->right} };
+                return { {&ptr->left()},{&ptr->right()}};
             }
             friend bool operator==(parent_aware_binary_tree_node_const_proxy l, parent_aware_binary_tree_node_const_proxy r)noexcept
             {
@@ -1151,14 +1151,14 @@ namespace Yc
             friend class parent_aware_binary_tree;
             operator parent_aware_binary_tree_edge_const_proxy<T>()const noexcept
             {
-                parent_aware_binary_tree_node<T>* tmp = (parent_aware_binary_tree_node<T>*)ptr->parent;
-                if (tmp->left == ptr)
+                parent_aware_binary_tree_node<T>* tmp = (parent_aware_binary_tree_node<T>*)ptr->parent();
+                if (tmp->left() == ptr)
                 {
-                    return { &tmp->left };
+                    return { &tmp->left()};
                 }
                 else
                 {
-                    return { &tmp->right };
+                    return { &tmp->right()};
                 }
             }
             using value_type = const T;
@@ -1539,7 +1539,7 @@ namespace Yc
                 edge_const_proxy tmp = l;
                 tmp.go_up();
                 node_ptr new_parent = *(tmp.ptr);
-                (*r.ptr)->parent = new_parent;
+                (*r.ptr)->parent() = new_parent;
                 *l.ptr = std::exchange(*r.ptr, {});
                 return;
             }
@@ -1548,11 +1548,11 @@ namespace Yc
                 edge_const_proxy tmp = r;
                 tmp.go_up();
                 node_ptr new_parent = *(tmp.ptr);
-                (*l.ptr)->parent = new_parent;
+                (*l.ptr)->parent() = new_parent;
                 *r.ptr = std::exchange(*l.ptr, {});
                 return;
             }
-            std::swap((*l.ptr)->parent, (*r.ptr)->parent);
+            std::swap((*l.ptr)->parent(), (*r.ptr)->parent());
             std::swap(*l.ptr, *r.ptr);
         }
         void swap(parent_aware_binary_tree& other)noexcept
