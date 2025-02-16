@@ -332,7 +332,7 @@ namespace Yc
             }
         };
     }
-    namespace cpo
+    namespace binary_tree_funtional
     {
         constexpr inline Yc::details::get_children_t get_children{};
     }
@@ -372,7 +372,6 @@ namespace Yc
         using node_const_proxy = details::binary_tree_node_const_proxy<T>;
     private:
         template<
-            bool check,
             class ValueGetter,
             class ChildrenGetter,
             class InitializeHandle
@@ -394,31 +393,34 @@ namespace Yc
             InitializeHandle h
         )
         {
+            derecur:
             if (!p.null())
             {
                 *((int*)nullptr);
             }
-            if constexpr (!check)
+            emplace(p, std::invoke(vg, h));
+            auto [lh, rh] = std::invoke(cg, h);
+            auto [l, r] = p.get_children();
+            bool bl = (bool)lh, br = (bool)rh;
+            if (!(bl && br))
             {
-                emplace(p, std::invoke(vg, h));
-                auto [lh, rh] = std::invoke(cg, h);
-                auto [l, r] = p.get_children();
-                if (!(bool)rh)
+                if (bl)
                 {
-                    return recur_and_write_impl<true>(l, vg, cg, lh);
+                    p = l;
+                    h = lh;
+                    goto derecur;
                 }
-                recur_and_write_impl<true>(l, vg, cg, lh);
-                return recur_and_write_impl<false>(r, vg, cg, rh);
-            }
-            else
-            {
-                if (h)
+                if (br)
                 {
-                    return recur_and_write_impl<false>(p, vg, cg, h);
+                    tmp:
+                    p = r;
+                    h = rh;
+                    goto derecur;
                 }
                 return;
             }
-            
+            recur_and_write_impl(l, vg, cg, lh);
+            goto tmp;
         }
         template<
             class ValueGetter,
@@ -432,9 +434,10 @@ namespace Yc
             InitializeHandle h
         )
         {
+            derecur:
             if (!h)
             {
-                cut(p);
+                erase(p);
                 return;
             }
             if (p)
@@ -465,8 +468,26 @@ namespace Yc
             }
             auto [lh, rh] = std::invoke(cg, h);
             auto [l, r] = p.get_children();
+            bool bl = (bool)lh, br = (bool)rh;
+            if (!(bl && br))
+            {
+                if (bl)
+                {
+                    p = l;
+                    h = lh;
+                    goto derecur;
+                }
+                if (br)
+                {
+                tmp:
+                    p = r;
+                    h = rh;
+                    goto derecur;
+                }
+                return;
+            }
             recur_and_overwrite_impl(l, vg, cg, lh);
-            recur_and_overwrite_impl(r, vg, cg, rh);
+            goto tmp;
         }
     public:
         template<
@@ -505,7 +526,10 @@ namespace Yc
                     }
                 }
             }guard{this, p, &ret};
-            recur_and_write_impl<true>(p, vg, cg, h);
+            if(h)
+            {
+                recur_and_write_impl(p, vg, cg, h);
+            }
             guard.t = nullptr;
             return ret;
         }
@@ -530,7 +554,10 @@ namespace Yc
             InitializeHandle h
         )
         {
-            recur_and_overwrite_impl(p, vg, cg, h);
+            if (h)
+            {
+                recur_and_overwrite_impl(p, vg, cg, h);
+            }
         }
         binary_tree() = default;
         explicit binary_tree(const Alloc& a) :alloc{ a }
@@ -548,7 +575,10 @@ namespace Yc
             const Alloc& a = {}
         ) :alloc{ a }
         {
-            recur_and_write_impl<true>(root(), vg, cg, h);
+            if (h)
+            {
+                recur_and_write_impl(root(), vg, cg, h);
+            }
         }
         binary_tree(const binary_tree& b) :binary_tree{ b.alloc }
         {
@@ -557,7 +587,7 @@ namespace Yc
                     return *p;
                 };
             recur_and_write
-                (root(), copier, cpo::get_children, b.croot());
+                (root(), copier, binary_tree_funtional::get_children, b.croot());
         }
         binary_tree& operator=(const binary_tree& b)
         {
@@ -603,11 +633,11 @@ namespace Yc
                     };
                 if constexpr (std::is_nothrow_move_assignable_v<T>)
                 {
-                    recur_and_overwrite(root(), vg, cpo::get_children, b.root());
+                    recur_and_overwrite(root(), vg, binary_tree_funtional::get_children, b.root());
                 }
                 else
                 {
-                    binary_tree tmp{ vg, cpo::get_children, b.root(), alloc };
+                    binary_tree tmp{ vg, binary_tree_funtional::get_children, b.root(), alloc };
                     swap(tmp);
                 }
                 return *this;
@@ -791,6 +821,184 @@ namespace Yc
             }
             right_rotate(q);
             return true;
+        }
+    private:
+        template<class UnaryFunc, class Proj>
+        static void pre_order_visit_impl(node_proxy p, UnaryFunc func, Proj proj)
+            noexcept(noexcept(std::invoke(func, std::invoke(proj, std::declval<T&>()))))
+        {
+            derecur:
+            std::invoke(func, std::invoke(proj, *p));
+            auto [l, r] = p.get_children();
+            bool lb = (bool)l, rb = (bool)r;
+            if (!(lb && rb))
+            {
+                if (lb)
+                {
+                    p = l;
+                    goto derecur;
+                }
+                if (rb)
+                {
+                    tmp:
+                    p = r;
+                    goto derecur;
+                }
+                return;
+            }
+            pre_order_visit_impl<UnaryFunc, Proj>(l, func, proj);
+            goto tmp;
+        }
+        template<class UnaryFunc, class Proj>
+        static void pre_order_visit_impl(node_const_proxy p, UnaryFunc func, Proj proj)
+            noexcept(noexcept(std::invoke(func, std::invoke(proj, std::declval<const T&>()))))
+        {
+        derecur:
+            std::invoke(func, std::invoke(proj, *p));
+            auto [l, r] = p.get_children();
+            bool lb = (bool)l, rb = (bool)r;
+            if (!(lb && rb))
+            {
+                if (lb)
+                {
+                    p = l;
+                    goto derecur;
+                }
+                if (rb)
+                {
+                tmp:
+                    p = r;
+                    goto derecur;
+                }
+                return;
+            }
+            pre_order_visit_impl<UnaryFunc, Proj>(l, func, proj);
+            goto tmp;
+        }
+        template<class UnaryFunc, class Proj>
+        static void in_order_visit_impl(node_proxy p, UnaryFunc func, Proj proj)
+            noexcept(noexcept(std::invoke(func, std::invoke(proj, std::declval<T&>()))))
+        {
+            derecur:
+            auto [l, r] = p.get_children();
+            if (l)
+            {
+                in_order_visit_impl<UnaryFunc, Proj>(l, func, proj);
+            }
+            std::invoke(func, std::invoke(proj, *p));
+            if (r)
+            {
+                p = r;
+                goto derecur;
+            }
+        }
+        template<class UnaryFunc, class Proj>
+        static void in_order_visit_impl(node_const_proxy p, UnaryFunc func, Proj proj)
+            noexcept(noexcept(std::invoke(func, std::invoke(proj, std::declval<T&>()))))
+        {
+        derecur:
+            auto [l, r] = p.get_children();
+            if (l)
+            {
+                in_order_visit_impl<UnaryFunc, Proj>(l, func, proj);
+            }
+            std::invoke(func, std::invoke(proj, *p));
+            if (r)
+            {
+                p = r;
+                goto derecur;
+            }
+        }
+        template<class UnaryFunc, class Proj>
+        static void post_order_visit_impl(node_proxy p, UnaryFunc func, Proj proj)
+            noexcept(noexcept(std::invoke(func, std::invoke(proj, std::declval<T&>()))))
+        {
+            auto [l, r] = p.get_children();
+            if (l)
+            {
+                post_order_visit_impl<UnaryFunc, Proj>(l, func, proj);
+            }
+            if (r)
+            {
+                post_order_visit_impl<UnaryFunc, Proj>(r, func, proj);
+            }
+            std::invoke(func, std::invoke(proj, *p));
+        }
+        template<class UnaryFunc, class Proj>
+        static void post_order_visit_impl(node_const_proxy p, UnaryFunc func, Proj proj)
+            noexcept(noexcept(std::invoke(func, std::invoke(proj, std::declval<T&>()))))
+        {
+            auto [l, r] = p.get_children();
+            if (l)
+            {
+                post_order_visit_impl<UnaryFunc, Proj>(l, func, proj);
+            }
+            if (r)
+            {
+                post_order_visit_impl<UnaryFunc, Proj>(r, func, proj);
+            }
+            std::invoke(func, std::invoke(proj, *p));
+        }
+    public:
+        template<class UnaryFunc, class Proj = std::identity>
+        static UnaryFunc pre_order_visit(node_proxy p ,UnaryFunc func, Proj proj = {})
+            noexcept(noexcept(std::invoke(func, std::invoke(proj, std::declval<T&>()))))
+        {
+            if (p)
+            {
+                pre_order_visit_impl(p, std::ref(func), std::ref(proj));
+            }
+            return func;
+        }
+        template<class UnaryFunc, class Proj = std::identity>
+        static UnaryFunc pre_order_visit(node_const_proxy p, UnaryFunc func, Proj proj = {}) 
+            noexcept(noexcept(std::invoke(func, std::invoke(proj, std::declval<const T&>()))))
+        {
+            if (p)
+            {
+                pre_order_visit_impl(p, std::ref(func), std::ref(proj));
+            }
+            return func;
+        }
+        template<class UnaryFunc, class Proj = std::identity>
+        static UnaryFunc in_order_visit(node_proxy p, UnaryFunc func, Proj proj = {})
+            noexcept(noexcept(std::invoke(func, std::invoke(proj, std::declval<T&>()))))
+        {
+            if (p)
+            {
+                in_order_visit_impl(p, std::ref(func), std::ref(proj));
+            }
+            return func;
+        }
+        template<class UnaryFunc, class Proj = std::identity>
+        static UnaryFunc in_order_visit(node_const_proxy p, UnaryFunc func, Proj proj = {})
+            noexcept(noexcept(std::invoke(func, std::invoke(proj, std::declval<const T&>()))))
+        {
+            if (p)
+            {
+                in_order_visit_impl(p, std::ref(func), std::ref(proj));
+            }
+            return func;
+        }
+        template<class UnaryFunc, class Proj = std::identity>
+        static UnaryFunc post_order_visit(node_proxy p, UnaryFunc func, Proj proj = {})
+            noexcept(noexcept(std::invoke(func, std::invoke(proj, std::declval<T&>()))))
+        {
+            if (p)
+            {
+                post_order_visit_impl(p, std::ref(func), std::ref(proj));
+            }
+            return func;
+        }
+        template<class UnaryFunc, class Proj = std::identity>
+        static UnaryFunc post_order_visit(node_const_proxy p, UnaryFunc func, Proj proj = {})
+            noexcept(noexcept(std::invoke(func, std::invoke(proj, std::declval<const T&>()))))
+        {
+            if (p)
+            {
+                post_order_visit_impl(p, std::ref(func), std::ref(proj));
+            }
+            return func;
         }
     };
     template<class T>
