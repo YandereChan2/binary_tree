@@ -4,87 +4,46 @@
 #include <functional>
 #include <utility>
 #include "union_data.h"
+
 namespace Yc
 {
     template<class T, class Alloc>
     class parent_aware_binary_tree;
     namespace details
     {
+        struct ptr_node
+        {
+            ptr_node* ptr{};
+        };
         struct parent_aware_binary_tree_node_base
         {
-            parent_aware_binary_tree_node_base* ptr[3]{};
-            parent_aware_binary_tree_node_base(parent_aware_binary_tree_node_base* p)
-                noexcept :ptr{ nullptr,nullptr,p }
-            {
-            }
-            parent_aware_binary_tree_node_base(
-                parent_aware_binary_tree_node_base* p1,
-                parent_aware_binary_tree_node_base* p2,
-                parent_aware_binary_tree_node_base* p3
-            )noexcept :ptr{ p1,p2,p3 }
-            {
-            }
-            parent_aware_binary_tree_node_base() = default;
-            parent_aware_binary_tree_node_base(const parent_aware_binary_tree_node_base&) = default;
-            parent_aware_binary_tree_node_base*& left()noexcept
-            {
-                return ptr[0];
-            }
-            parent_aware_binary_tree_node_base*& right()noexcept
-            {
-                return ptr[1];
-            }
-            parent_aware_binary_tree_node_base*& parent()noexcept
-            {
-                return ptr[2];
-            }
-            const parent_aware_binary_tree_node_base* const& left()const noexcept
-            {
-                return ptr[0];
-            }
-            const parent_aware_binary_tree_node_base* const& right()const noexcept
-            {
-                return ptr[1];
-            }
-            const parent_aware_binary_tree_node_base* const& parent()const noexcept
-            {
-                return ptr[2];
-            }
+            ptr_node ptr[3];
         };
-        namespace
-        {
-            parent_aware_binary_tree_node_base* find_this(parent_aware_binary_tree_node_base** p)noexcept
-            {
-                if (*p != nullptr)
-                {
-                    //总之是一个子节点
-                    return (*p)->parent();
-                }
-                //先假设p是左节点
-                ++p;//那么按理说现在是右节点
-                if (*p == nullptr)
-                {
-                    //右节点显然可以nullptr
-                    ++p;
-                    return (parent_aware_binary_tree_node_base*)(p - 2);
-                }
-                //如果现在是右节点，那么它的parent应该和tmp一致
-                parent_aware_binary_tree_node_base* tmp = (parent_aware_binary_tree_node_base*)(p - 1);
-                if ((*p)->parent() != tmp)
-                {
-                    //不一致说明原先就是右节点，现在已经偏到父节点了
-                    return (parent_aware_binary_tree_node_base*)(p - 2);
-                }
-                ++p;//再偏一格
-                return (parent_aware_binary_tree_node_base*)(p - 2);
-            }
-        }
-
         template<class T>
         struct parent_aware_binary_tree_node : parent_aware_binary_tree_node_base
         {
             data_t<T> data;
         };
+        namespace
+        {
+            ptr_node* find_this(ptr_node* p)noexcept
+            {
+                if (p->ptr)
+                {
+                    return ((p->ptr) + 2)->ptr;
+                }
+                ++p;
+                if (!p->ptr)
+                {
+                    return p - 1;
+                }
+                if ((p->ptr + 2)->ptr == p - 1)
+                {
+                    return p - 1;
+                }
+                return p - 2;
+            }
+        }
         template<class T>
         class parent_aware_binary_tree_edge_const_proxy;
         template<class T>
@@ -94,21 +53,21 @@ namespace Yc
         template<class T>
         class parent_aware_binary_tree_edge_proxy
         {
-            parent_aware_binary_tree_node_base** ptr{};
+            ptr_node* ptr{};
         public:
             parent_aware_binary_tree_edge_proxy() = default;
             parent_aware_binary_tree_edge_proxy(const parent_aware_binary_tree_edge_proxy&) = default;
-            parent_aware_binary_tree_edge_proxy(parent_aware_binary_tree_node_base** ptr)noexcept :ptr{ ptr }
+            parent_aware_binary_tree_edge_proxy& operator=(const parent_aware_binary_tree_edge_proxy&) = default;
+            parent_aware_binary_tree_edge_proxy(ptr_node* ptr)noexcept : ptr{ ptr }
             {
             }
-            parent_aware_binary_tree_edge_proxy& operator=(const parent_aware_binary_tree_edge_proxy&) = default;
             bool valid()const noexcept
             {
-                return (bool)ptr;
+                return ptr;
             }
             bool null()const noexcept
             {
-                return !(bool)*ptr;
+                return !ptr->ptr;
             }
             explicit operator bool()const noexcept
             {
@@ -116,38 +75,34 @@ namespace Yc
             }
             parent_aware_binary_tree_edge_proxy& go_left()noexcept
             {
-                ptr = &((*ptr)->left());
+                ptr = ptr->ptr;
                 return *this;
             }
             parent_aware_binary_tree_edge_proxy& go_right()noexcept
             {
-                ptr = &((*ptr)->right());
+                ptr = ptr->ptr + 1;
                 return *this;
             }
             parent_aware_binary_tree_edge_proxy& go_up()noexcept
             {
-                parent_aware_binary_tree_node_base* tmp = find_this(ptr);
-                if (tmp->parent()->left() == tmp)
+                auto ptr2 = (find_this(ptr) + 2)->ptr;
+                if (ptr2->ptr == ptr)
                 {
-                    ptr = &tmp->parent()->left();
+                    ptr = ptr2;
                 }
                 else
                 {
-                    ptr = &tmp->parent()->right();
+                    ptr = ptr2 + 1;
                 }
                 return *this;
             }
-            parent_aware_binary_tree_node_proxy<T> get_parent()const noexcept
+            T& operator*()noexcept
             {
-                return { (parent_aware_binary_tree_node<T>*)find_this(ptr) };
+                return ((parent_aware_binary_tree_node<T>*)(parent_aware_binary_tree_node_base*)ptr->ptr)->data.data;
             }
-            T& operator*()const noexcept
+            T* operator->()noexcept
             {
-                return ((parent_aware_binary_tree_node<T>*)(*ptr))->data.data;
-            }
-            T* operator->()const noexcept
-            {
-                return std::addressof(((parent_aware_binary_tree_node<T>*)(*ptr))->data.data);
+                return std::addressof(((parent_aware_binary_tree_node<T>*)(parent_aware_binary_tree_node_base*)ptr->ptr)->data.data);
             }
             std::pair<parent_aware_binary_tree_edge_proxy, parent_aware_binary_tree_edge_proxy> get_children()const noexcept
             {
@@ -174,7 +129,7 @@ struct std::hash<Yc::details::parent_aware_binary_tree_edge_proxy<T>>
 {
     size_t operator()(const Yc::details::parent_aware_binary_tree_edge_proxy<T>& para)const noexcept
     {
-        return std::hash<Yc::details::parent_aware_binary_tree_node_base**>{}(para.ptr);
+        return std::hash<Yc::details::ptr_node*>{}(para.ptr);
     }
 };
 namespace Yc
@@ -184,24 +139,24 @@ namespace Yc
         template<class T>
         class parent_aware_binary_tree_edge_const_proxy
         {
-            parent_aware_binary_tree_node_base** ptr{};
+            ptr_node* ptr{};
         public:
             parent_aware_binary_tree_edge_const_proxy() = default;
             parent_aware_binary_tree_edge_const_proxy(const parent_aware_binary_tree_edge_const_proxy&) = default;
-            parent_aware_binary_tree_edge_const_proxy(const parent_aware_binary_tree_edge_proxy<T>& p)noexcept : ptr{ p.ptr }
-            {
-            }
-            parent_aware_binary_tree_edge_const_proxy(parent_aware_binary_tree_node_base** ptr)noexcept :ptr{ ptr }
-            {
-            }
             parent_aware_binary_tree_edge_const_proxy& operator=(const parent_aware_binary_tree_edge_const_proxy&) = default;
+            parent_aware_binary_tree_edge_const_proxy(parent_aware_binary_tree_edge_proxy p)noexcept : ptr{ p.ptr }
+            {
+            }
+            parent_aware_binary_tree_edge_const_proxy(ptr_node* ptr)noexcept : ptr{ ptr }
+            {
+            }
             bool valid()const noexcept
             {
-                return (bool)ptr;
+                return ptr;
             }
             bool null()const noexcept
             {
-                return !(bool)*ptr;
+                return !ptr->ptr;
             }
             explicit operator bool()const noexcept
             {
@@ -209,38 +164,34 @@ namespace Yc
             }
             parent_aware_binary_tree_edge_const_proxy& go_left()noexcept
             {
-                ptr = &((*ptr)->left());
+                ptr = ptr->ptr;
                 return *this;
             }
             parent_aware_binary_tree_edge_const_proxy& go_right()noexcept
             {
-                ptr = &((*ptr)->right());
+                ptr = ptr->ptr + 1;
                 return *this;
             }
             parent_aware_binary_tree_edge_const_proxy& go_up()noexcept
             {
-                parent_aware_binary_tree_node_base* tmp = find_this(ptr);
-                if (tmp->parent()->left() == tmp)
+                auto ptr2 = (find_this(ptr) + 2)->ptr;
+                if (ptr2->ptr == ptr)
                 {
-                    ptr = &tmp->parent()->left();
+                    ptr = ptr2;
                 }
                 else
                 {
-                    ptr = &tmp->parent()->right();
+                    ptr = ptr2 + 1;
                 }
                 return *this;
             }
-            parent_aware_binary_tree_node_const_proxy<T> get_parent()const noexcept
+            const T& operator*()noexcept
             {
-                return { (parent_aware_binary_tree_node<T>*)find_this(ptr) };
+                return ((parent_aware_binary_tree_node<T>*)(parent_aware_binary_tree_node_base*)ptr->ptr)->data.data;
             }
-            const T& operator*()const noexcept
+            const T* operator->()noexcept
             {
-                return ((parent_aware_binary_tree_node<T>*)(*ptr))->data.data;
-            }
-            const T* operator->()const noexcept
-            {
-                return std::addressof(((parent_aware_binary_tree_node<T>*)(*ptr))->data.data);
+                return std::addressof(((parent_aware_binary_tree_node<T>*)(parent_aware_binary_tree_node_base*)ptr->ptr)->data.data);
             }
             std::pair<parent_aware_binary_tree_edge_const_proxy, parent_aware_binary_tree_edge_const_proxy> get_children()const noexcept
             {
@@ -256,6 +207,7 @@ namespace Yc
             friend struct std::hash<parent_aware_binary_tree_edge_const_proxy>;
             template<class T1, class Alloc>
             friend class Yc::parent_aware_binary_tree;
+            friend class parent_aware_binary_tree_node_const_proxy<T>;
             using value_type = const T;
         };
     }
@@ -265,7 +217,7 @@ struct std::hash<Yc::details::parent_aware_binary_tree_edge_const_proxy<T>>
 {
     size_t operator()(const Yc::details::parent_aware_binary_tree_edge_const_proxy<T>& para)const noexcept
     {
-        return std::hash<Yc::details::parent_aware_binary_tree_node_base**>{}(para.ptr);
+        return std::hash<Yc::details::ptr_node*>{}(para.ptr);
     }
 };
 namespace Yc
@@ -275,51 +227,59 @@ namespace Yc
         template<class T>
         class parent_aware_binary_tree_node_proxy
         {
-            parent_aware_binary_tree_node<T>* ptr{};
+            ptr_node* ptr{};
         public:
             parent_aware_binary_tree_node_proxy() = default;
-            parent_aware_binary_tree_node_proxy(parent_aware_binary_tree_node<T>* ptr)noexcept :ptr{ ptr }
-            {
-            }
-            parent_aware_binary_tree_node_proxy(parent_aware_binary_tree_edge_proxy<T> p)noexcept :ptr{ *p.ptr }
-            {
-            }
             parent_aware_binary_tree_node_proxy(const parent_aware_binary_tree_node_proxy&) = default;
             parent_aware_binary_tree_node_proxy& operator=(const parent_aware_binary_tree_node_proxy&) = default;
+            parent_aware_binary_tree_node_proxy(ptr_node* ptr)noexcept :ptr{ ptr }
+            {
+            }
+            parent_aware_binary_tree_node_proxy(parent_aware_binary_tree_edge_proxy<T> p)noexcept : ptr{p.ptr->ptr}
+            {
+            }
             bool null()const noexcept
             {
                 return ptr == nullptr;
             }
-            operator bool()const noexcept
+            explicit operator bool()const noexcept
             {
-                return !null();
-            }
-            T& operator*()const noexcept
-            {
-                return ptr->data.data;
-            }
-            T* operator->()const noexcept
-            {
-                return std::addressof(ptr->data.data);
+                return ptr;
             }
             parent_aware_binary_tree_node_proxy& go_left()noexcept
             {
-                ptr = (parent_aware_binary_tree_node<T>*)ptr->left();
+                ptr = ptr->ptr;
                 return *this;
             }
             parent_aware_binary_tree_node_proxy& go_right()noexcept
             {
-                ptr = (parent_aware_binary_tree_node<T>*)ptr->right();
+                ptr = (ptr + 1)->ptr;
                 return *this;
             }
             parent_aware_binary_tree_node_proxy& go_up()noexcept
             {
-                ptr = (parent_aware_binary_tree_node<T>*)ptr->parent();
+                ptr = (ptr + 2)->ptr;
                 return *this;
             }
-            std::pair<parent_aware_binary_tree_edge_proxy<T>, parent_aware_binary_tree_edge_proxy<T>> get_children()const
+            T& operator*()const noexcept
             {
-                return { {&ptr->left()},{&ptr->right()} };
+                return ((parent_aware_binary_tree_node<T>*)(parent_aware_binary_tree_node_base*)ptr)->data.data;
+            }
+            T* operator*()const noexcept
+            {
+                return std::addressof(((parent_aware_binary_tree_node<T>*)(parent_aware_binary_tree_node_base*)ptr)->data.data);
+            }
+            std::pair<parent_aware_binary_tree_edge_proxy<T>, parent_aware_binary_tree_edge_proxy<T>> get_children()const noexcept
+            {
+                std::pair<parent_aware_binary_tree_edge_proxy, parent_aware_binary_tree_edge_proxy> ret{ ptr, ptr + 1 };
+                return ret;
+            }
+            operator parent_aware_binary_tree_edge_proxy<T>()const noexcept
+            {
+                parent_aware_binary_tree_node_proxy tmp = *this;
+                tmp.go_up();
+                auto [l, r] = tmp.get_children();
+                return (static_cast<parent_aware_binary_tree_node_proxy>(l) == *this) ? l : r;
             }
             friend bool operator==(parent_aware_binary_tree_node_proxy l, parent_aware_binary_tree_node_proxy r)noexcept
             {
@@ -327,20 +287,6 @@ namespace Yc
             }
             friend struct std::hash<parent_aware_binary_tree_node_proxy>;
             friend class parent_aware_binary_tree_node_const_proxy<T>;
-            template<class T1, class Alloc>
-            friend class parent_aware_binary_tree;
-            operator parent_aware_binary_tree_edge_proxy<T>()const noexcept
-            {
-                parent_aware_binary_tree_node<T>* tmp = (parent_aware_binary_tree_node<T>*)ptr->parent();
-                if (tmp->left() == ptr)
-                {
-                    return { &tmp->left() };
-                }
-                else
-                {
-                    return { &tmp->right() };
-                }
-            }
             using value_type = T;
         };
     }
@@ -350,7 +296,7 @@ struct std::hash<Yc::details::parent_aware_binary_tree_node_proxy<T>>
 {
     size_t operator()(const Yc::details::parent_aware_binary_tree_node_proxy<T>& p)const noexcept
     {
-        return std::hash<Yc::details::parent_aware_binary_tree_node<T>*>{}(p.ptr);
+        return std::hash<Yc::details::ptr_node*>{}(p.ptr);
     }
 };
 namespace Yc
@@ -360,74 +306,65 @@ namespace Yc
         template<class T>
         class parent_aware_binary_tree_node_const_proxy
         {
-            parent_aware_binary_tree_node<T>* ptr{};
+            ptr_node* ptr{};
         public:
             parent_aware_binary_tree_node_const_proxy() = default;
-            parent_aware_binary_tree_node_const_proxy(parent_aware_binary_tree_node<T>* ptr)noexcept :ptr{ ptr }
-            {
-            }
-            parent_aware_binary_tree_node_const_proxy(parent_aware_binary_tree_edge_const_proxy<T> p)noexcept :ptr{ *p.ptr }
-            {
-            }
-            parent_aware_binary_tree_node_const_proxy(parent_aware_binary_tree_node_proxy<T> p)noexcept :ptr{ p.ptr }
-            {
-            }
             parent_aware_binary_tree_node_const_proxy(const parent_aware_binary_tree_node_const_proxy&) = default;
             parent_aware_binary_tree_node_const_proxy& operator=(const parent_aware_binary_tree_node_const_proxy&) = default;
+            parent_aware_binary_tree_node_const_proxy(ptr_node* ptr)noexcept :ptr{ ptr }
+            {
+            }
+            parent_aware_binary_tree_node_const_proxy(parent_aware_binary_tree_edge_const_proxy<T> p)noexcept : ptr{ p.ptr->ptr }
+            {
+            }
             bool null()const noexcept
             {
                 return ptr == nullptr;
             }
-            operator bool()const noexcept
+            explicit operator bool()const noexcept
             {
-                return !null();
-            }
-            const T& operator*()const noexcept
-            {
-                return ptr->data.data;
-            }
-            const T* operator->()const noexcept
-            {
-                return std::addressof(ptr->data.data);
+                return ptr;
             }
             parent_aware_binary_tree_node_const_proxy& go_left()noexcept
             {
-                ptr = (parent_aware_binary_tree_node<T>*)ptr->left();
+                ptr = ptr->ptr;
                 return *this;
             }
             parent_aware_binary_tree_node_const_proxy& go_right()noexcept
             {
-                ptr = (parent_aware_binary_tree_node<T>*)ptr->right();
+                ptr = (ptr + 1)->ptr;
                 return *this;
             }
             parent_aware_binary_tree_node_const_proxy& go_up()noexcept
             {
-                ptr = (parent_aware_binary_tree_node<T>*)ptr->parent();
+                ptr = (ptr + 2)->ptr;
                 return *this;
             }
-            std::pair<parent_aware_binary_tree_edge_const_proxy<T>, parent_aware_binary_tree_edge_const_proxy<T>> get_children()const
+            const T& operator*()const noexcept
             {
-                return { {&ptr->left()},{&ptr->right()} };
+                return ((parent_aware_binary_tree_node<T>*)(parent_aware_binary_tree_node_base*)ptr)->data.data;
+            }
+            const T* operator*()const noexcept
+            {
+                return std::addressof(((parent_aware_binary_tree_node<T>*)(parent_aware_binary_tree_node_base*)ptr)->data.data);
+            }
+            std::pair<parent_aware_binary_tree_edge_const_proxy<T>, parent_aware_binary_tree_edge_const_proxy<T>> get_children()const noexcept
+            {
+                std::pair<parent_aware_binary_tree_edge_const_proxy, parent_aware_binary_tree_edge_const_proxy> ret{ ptr, ptr + 1 };
+                return ret;
+            }
+            operator parent_aware_binary_tree_edge_const_proxy<T>()const noexcept
+            {
+                parent_aware_binary_tree_node_const_proxy tmp = *this;
+                tmp.go_up();
+                auto [l, r] = tmp.get_children();
+                return (static_cast<parent_aware_binary_tree_node_const_proxy>(l) == *this) ? l : r;
             }
             friend bool operator==(parent_aware_binary_tree_node_const_proxy l, parent_aware_binary_tree_node_const_proxy r)noexcept
             {
                 return l.ptr == r.ptr;
             }
             friend struct std::hash<parent_aware_binary_tree_node_const_proxy>;
-            template<class T1, class Alloc>
-            friend class parent_aware_binary_tree;
-            operator parent_aware_binary_tree_edge_const_proxy<T>()const noexcept
-            {
-                parent_aware_binary_tree_node<T>* tmp = (parent_aware_binary_tree_node<T>*)ptr->parent();
-                if (tmp->left() == ptr)
-                {
-                    return { &tmp->left() };
-                }
-                else
-                {
-                    return { &tmp->right() };
-                }
-            }
             using value_type = const T;
         };
     }
@@ -437,26 +374,54 @@ struct std::hash<Yc::details::parent_aware_binary_tree_node_const_proxy<T>>
 {
     size_t operator()(const Yc::details::parent_aware_binary_tree_node_const_proxy<T>& p)const noexcept
     {
-        return std::hash<Yc::details::parent_aware_binary_tree_node<T>*>{}(p.ptr);
+        return std::hash<Yc::details::ptr_node*>{}(p.ptr);
     }
 };
 namespace Yc
 {
+    namespace details
+    {
+        struct parent_aware_binary_tree_get_children_t
+        {
+            template<class T>
+            auto operator()(parent_aware_binary_tree_edge_proxy<T> p)const noexcept
+            {
+                return p.get_children();
+            }
+            template<class T>
+            auto operator()(parent_aware_binary_tree_edge_const_proxy<T> p)const noexcept
+            {
+                return p.get_children();
+            }
+            template<class T>
+            auto operator()(parent_aware_binary_tree_node_proxy<T> p)const noexcept
+            {
+                return p.get_children();
+            }
+            template<class T>
+            auto operator()(parent_aware_binary_tree_node_const_proxy<T> p)const noexcept
+            {
+                return p.get_children();
+            }
+        };
+    }
+    namespace parent_aware_binary_tree_functional
+    {
+        constexpr inline Yc::details::parent_aware_binary_tree_get_children_t get_children{};
+    }
     template<class T, class Alloc = std::allocator<T>>
     class parent_aware_binary_tree
     {
         using node_ptr = details::parent_aware_binary_tree_node_base*;
         using node_type = details::parent_aware_binary_tree_node<T>;
         using node_allocator = std::allocator_traits<Alloc>::template rebind_alloc<node_type>;
-        [[no_unique_address]] Alloc alloc{};
-        details::parent_aware_binary_tree_node_base parent_of_root{};
+        [[no_unique_address]] Alloc alloc;
+        details::ptr_node root_node[2]{};
         node_ptr allocate_node()
         {
             node_allocator a{ alloc };
             node_ptr p = std::allocator_traits<node_allocator>::allocate(a, 1);
             new (p)node_type;
-            p->left() = nullptr;
-            p->right() = nullptr;
             return p;
         }
         void deallocate_node(node_ptr p)noexcept
@@ -486,21 +451,37 @@ namespace Yc
             edge_const_proxy p,
             ValueGetter& vg,
             ChildrenGetter& cg,
-            InitializeHandle& h
+            InitializeHandle h
         )
         {
+        derecur:
             if (!p.null())
             {
-                *(int*)nullptr;
+                *((int*)nullptr);
             }
-            if (h)
+            emplace(p, std::invoke(vg, h));
+            auto [lh, rh] = std::invoke(cg, h);
+            auto [l, r] = p.get_children();
+            bool bl = (bool)lh, br = (bool)rh;
+            if (!(bl && br))
             {
-                emplace(p, std::invoke(vg, h));
-                auto&& [lh, rh] = std::invoke(cg, h);
-                auto [l, r] = p.get_children();
-                recur_and_write_impl(l, vg, cg, lh);
-                recur_and_write_impl(r, vg, cg, rh);
+                if (bl)
+                {
+                    p = l;
+                    h = lh;
+                    goto derecur;
+                }
+                if (br)
+                {
+                tmp:
+                    p = r;
+                    h = rh;
+                    goto derecur;
+                }
+                return;
             }
+            recur_and_write_impl(l, vg, cg, lh);
+            goto tmp;
         }
         template<
             class ValueGetter,
@@ -511,12 +492,13 @@ namespace Yc
             edge_const_proxy p,
             ValueGetter& vg,
             ChildrenGetter& cg,
-            InitializeHandle& h
+            InitializeHandle h
         )
         {
+        derecur:
             if (!h)
             {
-                cut(p);
+                erase(p);
                 return;
             }
             if (p)
@@ -545,10 +527,28 @@ namespace Yc
             {
                 emplace(p, std::invoke(vg, h));
             }
-            auto&& [lh, rh] = std::invoke(cg, h);
+            auto [lh, rh] = std::invoke(cg, h);
             auto [l, r] = p.get_children();
+            bool bl = (bool)lh, br = (bool)rh;
+            if (!(bl && br))
+            {
+                if (bl)
+                {
+                    p = l;
+                    h = lh;
+                    goto derecur;
+                }
+                if (br)
+                {
+                tmp:
+                    p = r;
+                    h = rh;
+                    goto derecur;
+                }
+                return;
+            }
             recur_and_overwrite_impl(l, vg, cg, lh);
-            recur_and_overwrite_impl(r, vg, cg, rh);
+            goto tmp;
         }
     public:
         template<
@@ -560,10 +560,10 @@ namespace Yc
             ValueGetter vg,
             ChildrenGetter cg,
             InitializeHandle h,
-            parent_aware_binary_tree bt
             ) {
-            bt.emplace(p, std::invoke(vg, h));
+            emplace(p, std::invoke(vg, h));
             //auto&& [lh, rh] = std::invoke(cg, h);
+            (bool)h;
         }
         parent_aware_binary_tree recur_and_write(
             edge_const_proxy p,
@@ -573,7 +573,24 @@ namespace Yc
         )
         {
             parent_aware_binary_tree ret{ cut(p) };
-            recur_and_write_impl(p, vg, cg, h);
+            struct _guard
+            {
+                parent_aware_binary_tree* t;
+                edge_const_proxy p;
+                parent_aware_binary_tree* r;
+                ~_guard()
+                {
+                    if (t)
+                    {
+                        t->splice(p, *r);
+                    }
+                }
+            }guard{ this, p, &ret };
+            if (h)
+            {
+                recur_and_write_impl(p, vg, cg, h);
+            }
+            guard.t = nullptr;
             return ret;
         }
         template<
@@ -584,11 +601,11 @@ namespace Yc
             edge_const_proxy p,
             ValueGetter vg,
             ChildrenGetter cg,
-            InitializeHandle h,
-            parent_aware_binary_tree bt
+            InitializeHandle h
             ) {
-            bt.emplace(p, std::invoke(vg, h));
+            emplace(p, std::invoke(vg, h));
             //auto&& [lh, rh] = std::invoke(cg, h);
+            (bool)h;
         }
         void recur_and_overwrite(
             edge_const_proxy p,
@@ -597,73 +614,14 @@ namespace Yc
             InitializeHandle h
         )
         {
-            recur_and_overwrite_impl(p, vg, cg, h);
+            if (h)
+            {
+                recur_and_overwrite_impl(p, vg, cg, h);
+            }
         }
         parent_aware_binary_tree() = default;
-        explicit parent_aware_binary_tree(const Alloc& a) :alloc{ a }
+        explicit parent_aware_binary_tree(const Alloc& a)noexcept :alloc{ a }
         {
-        }
-        parent_aware_binary_tree(const parent_aware_binary_tree& b) :alloc{ b.alloc }
-        {
-            auto copier = [](edge_const_proxy p) -> const T&
-                {
-                    return *p;
-                };
-            recur_and_write
-            (root(), copier, &edge_const_proxy::get_children, b.root());
-        }
-        parent_aware_binary_tree& operator=(const parent_aware_binary_tree& b)
-        {
-            clear();
-            if constexpr (
-                std::allocator_traits<Alloc>::propagate_on_container_copy_assignment::value)
-            {
-                alloc = b.alloc;
-            }
-            auto copier = [](edge_const_proxy p)->const T&
-                {
-                    return *p;
-                };
-            recur_and_write(root(), copier, &edge_const_proxy::get_children, b.root());
-            return *this;
-        }
-        parent_aware_binary_tree(parent_aware_binary_tree&& b)noexcept :
-            parent_of_root{ std::exchange(b.parent_of_root, {}) }, alloc{ std::move(b.alloc) }
-        {
-            parent_of_root.left()->parent() = &parent_of_root;
-        }
-        parent_aware_binary_tree& operator=(parent_aware_binary_tree&& b)
-        {
-            if constexpr
-                (std::allocator_traits<Alloc>::propagate_on_container_move_assignment::value)
-            {
-                using namespace std;
-                swap(alloc, b.alloc);
-                swap_sub_tree(root(), b.root());
-                return *this;
-            }
-            else
-            {
-                if (alloc == b.alloc)
-                {
-                    swap_sub_tree(root(), b.root());
-                    return *this;
-                }
-                auto vg = [](edge_proxy p) -> T&&
-                    {
-                        return (T&&)*p;
-                    };
-                if constexpr (std::is_nothrow_move_assignable_v<T>)
-                {
-                    recur_and_overwrite(root(), vg, &edge_proxy::get_children, b.root());
-                }
-                else
-                {
-                    parent_aware_binary_tree tmp{ vg, &edge_proxy::get_children, b.root(), alloc };
-                    swap(tmp);
-                }
-                return *this;
-            }
         }
         template<
             class ValueGetter,
@@ -677,23 +635,100 @@ namespace Yc
             const Alloc& a = {}
         ) :alloc{ a }
         {
-            recur_and_write_impl(root(), vg, cg, h);
+            if (h)
+            {
+                recur_and_write_impl(root(), vg, cg, h);
+            }
+        }
+        parent_aware_binary_tree(const parent_aware_binary_tree& b) :parent_aware_binary_tree{ b.alloc }
+        {
+            auto copier = [](edge_const_proxy p) -> const T&
+                {
+                    return *p;
+                };
+            recur_and_write
+            (root(), copier, binary_tree_funtional::get_children, b.croot());
+        }
+        parent_aware_binary_tree& operator=(const parent_aware_binary_tree& b)
+        {
+            Alloc tmp{ alloc };
+            struct _guard
+            {
+                parent_aware_binary_tree* t{};
+                Alloc* tmp{};
+                ~_guard()
+                {
+                    if (t)
+                    {
+                        t->alloc = *tmp;
+                    }
+                }
+            }guard{ this, &tmp };
+            if constexpr (
+                std::allocator_traits<Alloc>::propagate_on_container_copy_assignment::value)
+            {
+                alloc = b.alloc;
+            }
+            auto copier = [](edge_const_proxy p)->const T&
+            {
+                return *p;
+            };
+            recur_and_write(root(), copier, parent_aware_binary_tree_functional::get_children, b.root());
+            guard.t = nullptr;
+            return *this;
+        }
+        parent_aware_binary_tree(parent_aware_binary_tree&& b)noexcept :alloc{b.get_allocator()}
+        {
+            if (b.empty())
+            {
+                return;
+            }
+            root_node[0].ptr = std::exchange(b.root_node[0].ptr, {});
+            (root_node[0].ptr->ptr + 2)->ptr = root_node;
+        }
+        parent_aware_binary_tree& operator=(parent_aware_binary_tree&& b)noexcept(
+            std::allocator_traits<Alloc>::propagate_on_container_move_assignment::value ||
+            std::allocator_traits<Alloc>::is_always_equal::value)
+        {
+            if constexpr
+                (std::allocator_traits<Alloc>::propagate_on_container_move_assignment::value)
+            {
+                using namespace std;
+                swap(alloc, b.alloc);
+                swap_sub_tree(root, b.root());
+                return *this;
+            }
+            else
+            {
+                if (alloc == b.alloc)
+                {
+                    swap_sub_tree(root, b.root());
+                    return *this;
+                }
+                auto vg = [](edge_proxy p) -> T&&
+                {
+                    return (T&&)*p;
+                };
+                parent_aware_binary_tree tmp{ vg, parent_aware_binary_tree_functional::get_children, b.root(), alloc };
+                swap(tmp);
+                return *this;
+            }
         }
         bool empty()const noexcept
         {
-            return parent_of_root.left() == nullptr;
+            return root_node[0].ptr == nullptr;
         }
         edge_proxy root()noexcept
         {
-            return { &parent_of_root.left() };
+            return { (details::ptr_node*)root_node };
         }
         edge_const_proxy root()const noexcept
         {
-            return { &parent_of_root.left() };
+            return { (details::ptr_node*)root_node };
         }
         edge_const_proxy croot()const noexcept
         {
-            return { &parent_of_root.left() };
+            return { (details::ptr_node*)root_node };
         }
         node_proxy nroot()noexcept
         {
@@ -707,48 +742,43 @@ namespace Yc
         {
             return root();
         }
+        
         parent_aware_binary_tree cut(edge_const_proxy p)noexcept
         {
-            node_ptr* ptr = p.ptr;
-            node_ptr tmp = *ptr;
-            parent_aware_binary_tree ret{ alloc };
-            if (p)
+            if (p.null())
             {
-                ret.parent_of_root.left() = std::exchange(*ptr, {});
-                tmp->parent() = &ret.parent_of_root;
+                return parent_aware_binary_tree{ alloc };
             }
-            return ret;
+            parent_aware_binary_tree ret{ alloc };
+            root_node[0].ptr = std::exchange(p.ptr->ptr, {});
+            (root_node[0].ptr->ptr + 2)->ptr = root_node;
         }
-        void erase(edge_const_proxy p)
+        void erase(edge_const_proxy p)noexcept
         {
             if (!p.null())
             {
                 auto [l, r] = p.get_children();
                 erase(l);
                 erase(r);
-                node_ptr* ptr = p.ptr;
+                details::ptr_node* ptr = p.ptr;
                 std::allocator_traits<Alloc>::destroy(alloc, (T*)p.operator->());
-                deallocate_node(*ptr);
-                *ptr = nullptr;
+                deallocate_node((node_ptr)ptr->ptr);
+                ptr->ptr = nullptr;
             }
-            return;
         }
         void clear()noexcept
         {
             erase(root());
         }
         template<class... Args>
-        parent_aware_binary_tree emplace(edge_const_proxy p, Args&&... args)
+        parent_aware_binary_tree emplace(edge_const_proxy p, Args... args)
         {
-            edge_const_proxy tmp = p;
-            node_const_proxy tmp2 = tmp.get_parent();
-            node_ptr parent_node = tmp2.ptr;
             node_ptr new_node = allocate_node();
             node_allocator na{ alloc };
             if constexpr (std::is_nothrow_constructible_v<T, Args...>)
             {
                 std::allocator_traits<Alloc>::
-                    construct(alloc, &((node_type*)new_node)->data.data, std::forward<Args>(args)...);
+                    construct(alloc, std::addressof(((node_type*)new_node)->data.data), std::forward<Args>(args)...);
             }
             else
             {
@@ -763,15 +793,15 @@ namespace Yc
                             t->deallocate_node(ptr);
                         }
                     }
-                }guard{ this, new_node };
+                }guard{ this,new_node };
                 std::allocator_traits<Alloc>::
-                    construct(na, &((node_type*)new_node)->data.data, std::forward<Args>(args)...);
+                    construct(na, std::addressof(((node_type*)new_node)->data.data), std::forward<Args>(args)...);
                 guard.ptr = nullptr;
             }
             parent_aware_binary_tree ret{ cut(p) };
-            node_ptr* ptr = p.ptr;
-            *ptr = new_node;
-            new_node->parent() = parent_node;
+            details::ptr_node* ptr = p.ptr;
+            ptr->ptr = new_node->ptr;
+            new_node->ptr[2].ptr = details::find_this(ptr);
             return ret;
         }
         parent_aware_binary_tree insert(edge_const_proxy p, const T& v)
@@ -784,43 +814,41 @@ namespace Yc
         }
         parent_aware_binary_tree splice(edge_const_proxy to, edge_const_proxy from)noexcept
         {
-            if (from)
-            {
-                edge_const_proxy tmp = to;
-                node_const_proxy tmp2 = tmp.get_parent();
-                node_ptr new_parent = tmp2.ptr;
-                (*(from.ptr))->parent() = new_parent;
-            }
-            parent_aware_binary_tree ret{ cut(to) };
-            *(to.ptr) = std::exchange(*(from.ptr), {});
+            parent_aware_binary_tree t1{ cut(from) }, ret{ cut(to) };
+            details::ptr_node* ptr = to.ptr;
+            ptr->ptr = std::exchange(t1.root_node[0].ptr, {});
+            (ptr->ptr + 2)->ptr = details::find_this(ptr);
+            return ret;
+        }
+        parent_aware_binary_tree splice(edge_const_proxy to, parent_aware_binary_tree& from)noexcept
+        {
+            parent_aware_binary_tree &t1 = from, ret{ cut(to) };
+            details::ptr_node* ptr = to.ptr;
+            ptr->ptr = std::exchange(t1.root_node[0].ptr, {});
+            (ptr->ptr + 2)->ptr = details::find_this(ptr);
             return ret;
         }
         static void swap_sub_tree(edge_const_proxy l, edge_const_proxy r)noexcept
         {
-            if (l.null() && r.null())
+            details::ptr_node *p1 = l.ptr , *p2 = r.ptr;
+            if (p1->ptr == nullptr && p2->ptr == nullptr)
             {
                 return;
             }
-            if (l.null())
+            if (p1->ptr == nullptr)
             {
-                edge_const_proxy tmp = l;
-                tmp.go_up();
-                node_ptr new_parent = *(tmp.ptr);
-                (*r.ptr)->parent() = new_parent;
-                *l.ptr = std::exchange(*r.ptr, {});
+                std::swap(p1->ptr, p2->ptr);
+                p1->ptr[2] = details::find_this(p1);
                 return;
             }
-            if (r.null())
+            if (p2->ptr == nullptr)
             {
-                edge_const_proxy tmp = r;
-                tmp.go_up();
-                node_ptr new_parent = *(tmp.ptr);
-                (*l.ptr)->parent() = new_parent;
-                *r.ptr = std::exchange(*l.ptr, {});
+                std::swap(p1->ptr, p2->ptr);
+                p2->ptr[2] = details::find_this(p2);
                 return;
             }
-            std::swap((*l.ptr)->parent(), (*r.ptr)->parent());
-            std::swap(*l.ptr, *r.ptr);
+            std::swap(p1->ptr, p2->ptr);
+            std::swap(p1->ptr[2], p2->ptr[2]);
         }
         void swap(parent_aware_binary_tree& other)noexcept
         {
@@ -888,6 +916,184 @@ namespace Yc
             }
             right_rotate(q);
             return true;
+        }
+        private:
+            template<class UnaryFunc, class Proj>
+            static void pre_order_visit_impl(node_proxy p, UnaryFunc func, Proj proj)
+                noexcept(noexcept(std::invoke(func, std::invoke(proj, std::declval<T&>()))))
+            {
+            derecur:
+                std::invoke(func, std::invoke(proj, *p));
+                auto [l, r] = p.get_children();
+                bool lb = (bool)l, rb = (bool)r;
+                if (!(lb && rb))
+                {
+                    if (lb)
+                    {
+                        p = l;
+                        goto derecur;
+                    }
+                    if (rb)
+                    {
+                    tmp:
+                        p = r;
+                        goto derecur;
+                    }
+                    return;
+                }
+                pre_order_visit_impl<UnaryFunc, Proj>(l, func, proj);
+                goto tmp;
+            }
+            template<class UnaryFunc, class Proj>
+            static void pre_order_visit_impl(node_const_proxy p, UnaryFunc func, Proj proj)
+                noexcept(noexcept(std::invoke(func, std::invoke(proj, std::declval<const T&>()))))
+            {
+            derecur:
+                std::invoke(func, std::invoke(proj, *p));
+                auto [l, r] = p.get_children();
+                bool lb = (bool)l, rb = (bool)r;
+                if (!(lb && rb))
+                {
+                    if (lb)
+                    {
+                        p = l;
+                        goto derecur;
+                    }
+                    if (rb)
+                    {
+                    tmp:
+                        p = r;
+                        goto derecur;
+                    }
+                    return;
+                }
+                pre_order_visit_impl<UnaryFunc, Proj>(l, func, proj);
+                goto tmp;
+            }
+            template<class UnaryFunc, class Proj>
+            static void in_order_visit_impl(node_proxy p, UnaryFunc func, Proj proj)
+                noexcept(noexcept(std::invoke(func, std::invoke(proj, std::declval<T&>()))))
+            {
+            derecur:
+                auto [l, r] = p.get_children();
+                if (l)
+                {
+                    in_order_visit_impl<UnaryFunc, Proj>(l, func, proj);
+                }
+                std::invoke(func, std::invoke(proj, *p));
+                if (r)
+                {
+                    p = r;
+                    goto derecur;
+                }
+            }
+            template<class UnaryFunc, class Proj>
+            static void in_order_visit_impl(node_const_proxy p, UnaryFunc func, Proj proj)
+                noexcept(noexcept(std::invoke(func, std::invoke(proj, std::declval<T&>()))))
+            {
+            derecur:
+                auto [l, r] = p.get_children();
+                if (l)
+                {
+                    in_order_visit_impl<UnaryFunc, Proj>(l, func, proj);
+                }
+                std::invoke(func, std::invoke(proj, *p));
+                if (r)
+                {
+                    p = r;
+                    goto derecur;
+                }
+            }
+            template<class UnaryFunc, class Proj>
+            static void post_order_visit_impl(node_proxy p, UnaryFunc func, Proj proj)
+                noexcept(noexcept(std::invoke(func, std::invoke(proj, std::declval<T&>()))))
+            {
+                auto [l, r] = p.get_children();
+                if (l)
+                {
+                    post_order_visit_impl<UnaryFunc, Proj>(l, func, proj);
+                }
+                if (r)
+                {
+                    post_order_visit_impl<UnaryFunc, Proj>(r, func, proj);
+                }
+                std::invoke(func, std::invoke(proj, *p));
+            }
+            template<class UnaryFunc, class Proj>
+            static void post_order_visit_impl(node_const_proxy p, UnaryFunc func, Proj proj)
+                noexcept(noexcept(std::invoke(func, std::invoke(proj, std::declval<T&>()))))
+            {
+                auto [l, r] = p.get_children();
+                if (l)
+                {
+                    post_order_visit_impl<UnaryFunc, Proj>(l, func, proj);
+                }
+                if (r)
+                {
+                    post_order_visit_impl<UnaryFunc, Proj>(r, func, proj);
+                }
+                std::invoke(func, std::invoke(proj, *p));
+            }
+    public:
+        template<class UnaryFunc, class Proj = std::identity>
+        static UnaryFunc pre_order_visit(node_proxy p, UnaryFunc func, Proj proj = {})
+            noexcept(noexcept(std::invoke(func, std::invoke(proj, std::declval<T&>()))))
+        {
+            if (p)
+            {
+                pre_order_visit_impl(p, std::ref(func), std::ref(proj));
+            }
+            return func;
+        }
+        template<class UnaryFunc, class Proj = std::identity>
+        static UnaryFunc pre_order_visit(node_const_proxy p, UnaryFunc func, Proj proj = {})
+            noexcept(noexcept(std::invoke(func, std::invoke(proj, std::declval<const T&>()))))
+        {
+            if (p)
+            {
+                pre_order_visit_impl(p, std::ref(func), std::ref(proj));
+            }
+            return func;
+        }
+        template<class UnaryFunc, class Proj = std::identity>
+        static UnaryFunc in_order_visit(node_proxy p, UnaryFunc func, Proj proj = {})
+            noexcept(noexcept(std::invoke(func, std::invoke(proj, std::declval<T&>()))))
+        {
+            if (p)
+            {
+                in_order_visit_impl(p, std::ref(func), std::ref(proj));
+            }
+            return func;
+        }
+        template<class UnaryFunc, class Proj = std::identity>
+        static UnaryFunc in_order_visit(node_const_proxy p, UnaryFunc func, Proj proj = {})
+            noexcept(noexcept(std::invoke(func, std::invoke(proj, std::declval<const T&>()))))
+        {
+            if (p)
+            {
+                in_order_visit_impl(p, std::ref(func), std::ref(proj));
+            }
+            return func;
+        }
+        template<class UnaryFunc, class Proj = std::identity>
+        static UnaryFunc post_order_visit(node_proxy p, UnaryFunc func, Proj proj = {})
+            noexcept(noexcept(std::invoke(func, std::invoke(proj, std::declval<T&>()))))
+        {
+            if (p)
+            {
+                post_order_visit_impl(p, std::ref(func), std::ref(proj));
+            }
+            return func;
+        }
+        template<class UnaryFunc, class Proj = std::identity>
+        static UnaryFunc post_order_visit(node_const_proxy p, UnaryFunc func, Proj proj = {})
+            noexcept(noexcept(std::invoke(func, std::invoke(proj, std::declval<const T&>()))))
+        {
+            if (p)
+            {
+                post_order_visit_impl(p, std::ref(func), std::ref(proj));
+            }
+            return func;
         }
     };
 }

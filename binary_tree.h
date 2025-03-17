@@ -192,7 +192,7 @@ namespace Yc
             {
                 return ptr == nullptr;
             }
-            operator bool()const noexcept
+            explicit operator bool()const noexcept
             {
                 return !null();
             }
@@ -261,7 +261,7 @@ namespace Yc
             {
                 return ptr == nullptr;
             }
-            operator bool()const noexcept
+            explicit operator bool()const noexcept
             {
                 return !null();
             }
@@ -308,7 +308,7 @@ namespace Yc
 {
     namespace details
     {
-        struct get_children_t
+        struct binary_tree_get_children_t
         {
             template<class T>
             auto operator()(binary_tree_edge_proxy<T> p)const noexcept
@@ -332,9 +332,9 @@ namespace Yc
             }
         };
     }
-    namespace binary_tree_funtional
+    namespace binary_tree_functional
     {
-        constexpr inline Yc::details::get_children_t get_children{};
+        constexpr inline Yc::details::binary_tree_get_children_t get_children{};
     }
     template<class T, class Alloc = std::allocator<T>>
     class binary_tree
@@ -375,17 +375,7 @@ namespace Yc
             class ValueGetter,
             class ChildrenGetter,
             class InitializeHandle
-        > requires requires (
-            edge_const_proxy p,
-            ValueGetter vg,
-            ChildrenGetter cg,
-            InitializeHandle h,
-            binary_tree t
-            ) {
-            t.emplace(p, std::invoke(vg, h));
-            //auto&& [lh, rh] = std::invoke(cg, h);
-            (bool)h;
-        }
+        >
         void recur_and_write_impl(
             edge_const_proxy p,
             ValueGetter& vg,
@@ -560,7 +550,7 @@ namespace Yc
             }
         }
         binary_tree() = default;
-        explicit binary_tree(const Alloc& a) :alloc{ a }
+        explicit binary_tree(const Alloc& a)noexcept :alloc{a}
         {
         }
         template<
@@ -587,21 +577,34 @@ namespace Yc
                     return *p;
                 };
             recur_and_write
-                (root(), copier, binary_tree_funtional::get_children, b.croot());
+                (root(), copier, binary_tree_functional::get_children, b.croot());
         }
         binary_tree& operator=(const binary_tree& b)
         {
-            clear();
+            Alloc tmp{ alloc };
+            struct _guard
+            {
+                binary_tree* t{};
+                Alloc* tmp{};
+                ~_guard()
+                {
+                    if (t)
+                    {
+                        t->alloc = *tmp;
+                    }
+                }
+            }guard{this, &tmp};
             if constexpr (
                 std::allocator_traits<Alloc>::propagate_on_container_copy_assignment::value)
             {
                 alloc = b.alloc;
             }
             auto copier = [](edge_const_proxy p)->const T&
-                {
-                    return *p;
-                };
+            {
+                return *p;
+            };
             recur_and_write(root(), copier, &edge_const_proxy::get_children, b.root());
+            guard.t = nullptr;
             return *this;
         }
         binary_tree(binary_tree&& b)noexcept :
@@ -628,18 +631,11 @@ namespace Yc
                     return *this;
                 }
                 auto vg = [](edge_proxy p) -> T&&
-                    {
-                        return (T&&)*p;
-                    };
-                if constexpr (std::is_nothrow_move_assignable_v<T>)
                 {
-                    recur_and_overwrite(root(), vg, binary_tree_funtional::get_children, b.root());
-                }
-                else
-                {
-                    binary_tree tmp{ vg, binary_tree_funtional::get_children, b.root(), alloc };
-                    swap(tmp);
-                }
+                    return (T&&)*p;
+                };
+                binary_tree tmp{ vg, binary_tree_functional::get_children, b.root(), alloc };
+                swap(tmp);
                 return *this;
             }
         }
@@ -690,7 +686,6 @@ namespace Yc
                 deallocate_node(*ptr);
                 *ptr = nullptr;
             }
-            return;
         }
         void clear()noexcept
         {
@@ -704,7 +699,7 @@ namespace Yc
             if constexpr (std::is_nothrow_constructible_v<T, Args...>)
             {
                 std::allocator_traits<Alloc>::
-                    construct(alloc, &((node_type*)new_node)->data.data, std::forward<Args>(args)...);
+                    construct(alloc, std::addressof(((node_type*)new_node)->data.data), std::forward<Args>(args)...);
             }
             else
             {
@@ -721,7 +716,7 @@ namespace Yc
                     }
                 }guard{ this,new_node };
                 std::allocator_traits<Alloc>::
-                    construct(na, &((node_type*)new_node)->data.data, std::forward<Args>(args)...);
+                    construct(na, std::addressof(((node_type*)new_node)->data.data), std::forward<Args>(args)...);
                 guard.ptr = nullptr;
             }
             binary_tree ret{ cut(p) };
