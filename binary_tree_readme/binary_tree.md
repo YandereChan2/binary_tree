@@ -65,7 +65,7 @@ template<
 |[`cut`](cut.md)|取出某个 _树位置_ 上的 _二叉树_ <br>（公开成员函数）|
 |[`swap_sub_tree`](swap_sub_tree.md)（静态）|交换两个 _树位置_ 上的 _二叉树_ <br>（公开成员函数）|
 |[`splice`](splice.md)|从其他 _树位置_ 转移 _二叉树_ <br>（公开成员函数）|
-|[`recur_and_write`<br>`recur_and_overwrite`](recur_and_write.md)|消耗一个输入以在某个 _树位置_ 构造 _二叉树_ ，将递归的在其保有的 _树位置_ 继续构造 _二叉树_ <br>（公开成员函数）|
+|[`recur_and_write`](recur_and_write.md)|消耗一个输入以在某个 _树位置_ 构造 _二叉树_ ，将递归的在其保有的 _树位置_ 继续构造 _二叉树_ <br>（公开成员函数）|
 
 ### 操作
 
@@ -84,4 +84,5 @@ template<
 
 |||
 |:-|:-|
+
 |[`Yc::swap`](adl_swap.md)|交换内容<br>（函数模板）|
