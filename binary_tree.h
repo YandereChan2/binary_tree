@@ -360,7 +360,7 @@ namespace Yc
     }
     namespace binary_tree_functional
     {
-        constexpr inline Yc::details::binary_tree_get_children_t get_children{};
+        constexpr Yc::details::binary_tree_get_children_t get_children{};
     }
     template<class T, class Alloc = std::allocator<T>>
     class binary_tree

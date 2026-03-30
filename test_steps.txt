@@ -1,0 +1,1 @@
+使用cmake -P run_tests.cmake即可运行单元测试
