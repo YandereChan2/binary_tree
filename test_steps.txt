@@ -1,1 +1,1 @@
-使用cmake -P run_tests.cmake即可运行单元测试
+锘夸娇鐢╟make -P run_tests.cmake鍗冲彲杩愯鍗曞厓娴嬭瘯
