@@ -9,7 +9,7 @@ binary_tree emplace(edge_const_proxy p, Args&&... args);
 
 如果 `p` 所指代的 _树位置_ 原先就有一个 _二叉树_ 那么将其通过返回值转移至 `*this` 外部。
 
-如果 `p` 不从 `root()` 可达，那么行为[未定义](https://zh.cppreference.com/w/cpp/language/ub)。
+如果 `p` 不从 [`root()`](root.md) 可达，那么行为[未定义](https://zh.cppreference.com/w/cpp/language/ub)。
 
 任何既有代理对象和元素引用都不会失效。
 
