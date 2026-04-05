@@ -1,21 +1,25 @@
 # `Yc::binary_tree<T,Allocator>::splice`
 
 ```C++
-binary_tree splice(edge_const_proxy to, edge_const_proxy from)noexcept; //(1)
+binary_tree splice(edge_const_proxy to, binary_tree&, edge_const_proxy from)noexcept; //(1)
 ```
 
 ```C++
-binary_tree splice(edge_const_proxy to, binary_tree& from)noexcept; //(2)
+binary_tree splice(edge_const_proxy to, binary_tree&&, edge_const_proxy from)noexcept; //(2)
 ```
 
 ```C++
-binary_tree splice(edge_const_proxy to, binary_tree&& from)noexcept; //(3)
+binary_tree splice(edge_const_proxy to, binary_tree& from)noexcept; //(3)
+```
+
+```C++
+binary_tree splice(edge_const_proxy to, binary_tree&& from)noexcept; //(4)
 ```
 
 将来自 `from` 的 _二叉树_ 转移至 `to` 所指代的 _树位置_ 。使用返回值将 `to` 处原先的 _二叉树_ 转移至外部。
 
-- (1) 转移的是处于 `from` 所指代的 _树位置_ 的 _二叉树_ 。
-- (2,3) 转移的是 `from` 内部 _树位置_ 上的 _二叉树_ 。
+- (1,2) 转移的是处于 `from` 所指代的 _树位置_ 的 _二叉树_ 。第二个参数实际不起作用，仅用于方便表明from的来源。
+- (3,4) 转移的是 `from` 内部 _树位置_ 上的 _二叉树_ 。
 
 如果 `from` 不能提供 _二叉树_ ，那么操作后 `to` 处将没有 _二叉树_ 。
 
