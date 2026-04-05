@@ -1,4 +1,4 @@
-# `Yc::binary_tree<T,Allocator>::nroot`, # `Yc::binary_tree<T,Allocator>::cnroot`
+# `Yc::binary_tree<T,Allocator>::nroot`, `Yc::binary_tree<T,Allocator>::cnroot`
 
 ```C++
 node_proxy nroot()noexcept; //(1)
