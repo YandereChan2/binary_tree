@@ -1,4 +1,4 @@
-ï»¿#pragma once
+#pragma once
 #include <memory>
 #include <type_traits>
 #include <functional>
@@ -11,9 +11,9 @@ namespace Yc
     class binary_tree;
     namespace details
     {
-        // ä¸ºäº†è§„é¿åˆ†é…å™¨æ¶‰åŠåˆ°ä¸å®Œæ•´ç±»å‹
-        // äºŒå‰æ ‘èŠ‚ç‚¹ç»§æ‰¿ç©ºç±»binary_tree_empty_placeholder
-        // å­˜å‚¨binary_tree_empty_placeholderåˆ†é…å™¨å¯¹åº”çš„pointer
+        // ÎªÁË¹æ±Ü·ÖÅäÆ÷Éæ¼°µ½²»ÍêÕûÀàĞÍ
+        // ¶ş²æÊ÷½Úµã¼Ì³Ğ¿ÕÀàbinary_tree_empty_placeholder
+        // ´æ´¢binary_tree_empty_placeholder·ÖÅäÆ÷¶ÔÓ¦µÄpointer
         struct binary_tree_empty_placeholder
         { };
         template<class Alloc>
@@ -41,7 +41,7 @@ namespace Yc
             using pointer_to_pointer = std::allocator_traits<Alloc>::template rebind_traits<typename std::allocator_traits<Alloc>::pointer>::pointer;
             using pointer = std::allocator_traits<Alloc>::pointer;
             
-            pointer_to_pointer ptr{}; // **ptrçš„ç±»å‹æ˜¯binary_tree_empty_placeholder&
+            pointer_to_pointer ptr{}; // **ptrµÄÀàĞÍÊÇbinary_tree_empty_placeholder&
         public:
             binary_tree_edge_proxy() = default;
             binary_tree_edge_proxy(const binary_tree_edge_proxy&) = default;
@@ -117,7 +117,7 @@ namespace Yc
             using pointer_to_pointer = std::allocator_traits<Alloc>::template rebind_traits<typename std::allocator_traits<Alloc>::pointer>::pointer;
             using pointer = std::allocator_traits<Alloc>::pointer;
 
-            pointer_to_pointer ptr{}; // **ptrçš„ç±»å‹æ˜¯binary_tree_empty_placeholder&
+            pointer_to_pointer ptr{}; // **ptrµÄÀàĞÍÊÇbinary_tree_empty_placeholder&
         public:
             binary_tree_edge_const_proxy() = default;
             binary_tree_edge_const_proxy(const binary_tree_edge_const_proxy&) = default;
@@ -194,7 +194,7 @@ namespace Yc
         {
             using pointer = std::allocator_traits<Alloc>::pointer;
             using pointer_to_pointer = std::allocator_traits<Alloc>::template rebind_traits<typename std::allocator_traits<Alloc>::pointer>::pointer;
-            pointer ptr{}; // *ptrçš„ç±»å‹æ˜¯binary_tree_empty_placeholder&
+            pointer ptr{}; // *ptrµÄÀàĞÍÊÇbinary_tree_empty_placeholder&
         public:
             binary_tree_node_proxy() = default;
             binary_tree_node_proxy(pointer ptr)noexcept :ptr{ ptr }
@@ -266,7 +266,7 @@ namespace Yc
         {
             using pointer = std::allocator_traits<Alloc>::pointer;
             using pointer_to_pointer = std::allocator_traits<Alloc>::template rebind_traits<typename std::allocator_traits<Alloc>::pointer>::pointer;
-            pointer ptr{}; // *ptrçš„ç±»å‹æ˜¯binary_tree_empty_placeholder&
+            pointer ptr{}; // *ptrµÄÀàĞÍÊÇbinary_tree_empty_placeholder&
         public:
             binary_tree_node_const_proxy() = default;
             binary_tree_node_const_proxy(pointer ptr)noexcept :ptr{ ptr }
@@ -361,7 +361,7 @@ namespace Yc
     }
     namespace binary_tree_functional
     {
-        constexpr Yc::details::binary_tree_get_children_t get_children{};
+        constexpr inline Yc::details::binary_tree_get_children_t get_children{};
     }
     template<class T, class Alloc = std::allocator<T>>
     class binary_tree
@@ -450,6 +450,73 @@ namespace Yc
             recur_and_write_impl(l, vg, cg, lh);
             goto tmp;
         }
+    //    template<
+    //        class ValueGetter,
+    //        class ChildrenGetter,
+    //        class InitializeHandle
+    //    >
+    //    void recur_and_overwrite_impl(
+    //        edge_const_proxy p,
+    //        ValueGetter& vg,
+    //        ChildrenGetter& cg,
+    //        InitializeHandle h
+    //    )
+    //    {
+    //        derecur:
+    //        if (!h)
+    //        {
+    //            erase(p);
+    //            return;
+    //        }
+    //        if (p)
+    //        {
+    //            T& t = (T&)*p;
+    //            if constexpr (requires{
+    //                t = std::invoke(vg, h);
+    //            } && noexcept(t = std::invoke(vg, h)))
+    //            {
+    //                t = std::invoke(vg, h);
+    //            }
+    //            else if constexpr (requires{
+    //                t = T{ std::invoke(vg,h) };
+    //            } && noexcept(t = T{ std::invoke(vg,h) }))
+    //            {
+    //                t = T{ std::invoke(vg,h) };
+    //            }
+    //            else
+    //            {
+    //                std::allocator_traits<Alloc>::destroy(alloc, (T*)p.operator->());
+    //                static_assert(std::is_nothrow_constructible_v<T, decltype(std::invoke(vg, h))>);
+    //                std::allocator_traits<Alloc>::construct(alloc, (T*)p.operator->(), std::invoke(vg, h));
+    //            }
+    //        }
+    //        else
+    //        {
+    //            emplace(p, std::invoke(vg, h));
+    //        }
+    //        auto [lh, rh] = std::invoke(cg, h);
+    //        auto [l, r] = p.get_children();
+    //        bool bl = (bool)lh, br = (bool)rh;
+    //        if (!(bl && br))
+    //        {
+    //            if (bl)
+    //            {
+    //                p = l;
+    //                h = lh;
+    //                goto derecur;
+    //            }
+    //            if (br)
+    //            {
+    //            tmp:
+    //                p = r;
+    //                h = rh;
+    //                goto derecur;
+    //            }
+    //            return;
+    //        }
+    //        recur_and_overwrite_impl(l, vg, cg, lh);
+    //        goto tmp;
+    //    }
     public:
         template<
             class ValueGetter,
@@ -463,7 +530,6 @@ namespace Yc
             binary_tree b
             ) {
             b.emplace(p, std::invoke(vg, h));
-            //auto&& [lh, rh] = std::invoke(cg, h);
             (bool)h;
         }
         binary_tree recur_and_write(
@@ -597,7 +663,7 @@ namespace Yc
         }
         edge_const_proxy root()const noexcept
         {
-            return { pointer_to((node_pointer&)root_ptr) };
+            return { pointer_to(root_ptr) };
         }
         edge_const_proxy croot()const noexcept
         {
@@ -628,7 +694,7 @@ namespace Yc
             {
                 node_pointer& place = *p.ptr;
                 
-                // ç®€æ˜“çš„é˜²æ­¢é€’å½’è¿‡æ·±çš„ç®—æ³•
+                // ¼òÒ×µÄ·ÀÖ¹µİ¹é¹ıÉîµÄËã·¨
                 while (true) {
                     auto [l, r] = p.get_children();
                     bool l_null = l.null();
@@ -729,6 +795,12 @@ namespace Yc
         {
             std::swap(*(l.ptr), *(r.ptr));
         }
+
+        static void swap_sub_tree(edge_const_proxy l, edge_const_proxy r)noexcept
+        {
+            std::swap(*(l.ptr), *(r.ptr));
+        }
+
         void swap(binary_tree& other)noexcept
         {
             if constexpr (std::allocator_traits<Alloc>::propagate_on_container_swap::value)
@@ -795,6 +867,14 @@ namespace Yc
             }
             right_rotate(q);
             return true;
+        }
+        static void swap_node(edge_const_proxy l, edge_const_proxy r)
+        {
+            swap_sub_tree(l, r);
+            auto [ll, lr] = l.get_children();
+            auto [rl, rr] = r.get_children();
+            swap_sub_tree(ll, rl);
+            swap_sub_tree(lr, rr);
         }
     };
     template<class T>
