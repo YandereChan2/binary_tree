@@ -25,6 +25,8 @@ namespace Yc
         using allocator_type = Alloc;
 
         rb_set() = default;
+        rb_set(const Alloc& a)noexcept :tree{ allocator_with_cookie<value_with_cookie<T, size_t>, Alloc, size_t > {a} }
+        {}
         rb_set(const rb_set& other) :sz{ other.sz }, tree{
             [](edge_const_proxy p) -> std::pair<cookie_wrapper<size_t>, const T&> { return {cookie_wrapper<size_t>{p->cookie()}, p->value()}; },
             parent_aware_binary_tree_functional::get_children,
@@ -177,6 +179,9 @@ namespace Yc
                 n->cookie() = old_cookie_n;
                 q->cookie() = old_cookie_q;
                 n = q;
+                auto [l1, r1] = n->get_children();
+                lf = (bool)l1;
+                rf = (bool)r1;
             }
 
             if (!lf && !rf)
@@ -383,7 +388,7 @@ namespace Yc
         {
             tree_type tmp{ tree.get_allocator() };
             tmp.emplace(tmp.root(), std::forward<Args>(args)...);
-            edge_const_proxy p = find_impl(*p.root());
+            edge_const_proxy p = find_impl(*tmp.root());
             if (p)
             {
                 return std::pair<iterator, bool>{ iterator{ node_const_proxy{ p } }, false };

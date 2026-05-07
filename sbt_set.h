@@ -1,17 +1,15 @@
 #pragma once
+#pragma once
 #include "cookie_allocator.h"
 #include "parent_aware_binary_tree.h"
 #include "set_common.h"
-#include <memory_resource>
 #include <memory>
 #include <algorithm>
 #include <utility>
-
 namespace Yc
 {
-    
     template<class T, class Compare = std::less<T>, class Alloc = std::allocator<T>>
-    class avl_set
+    class sbt_set
     {
         using tree_type = parent_aware_binary_tree<value_with_cookie<T, size_t>,
             allocator_with_cookie<value_with_cookie<T, size_t>, Alloc, size_t>>;
@@ -24,18 +22,18 @@ namespace Yc
         using key_compare = Compare;
         using value_compare = Compare;
         using allocator_type = Alloc;
-        avl_set() = default;
-        avl_set(const Alloc& a)noexcept :tree{ allocator_with_cookie<value_with_cookie<T, size_t>, Alloc, size_t > {a} }
+
+        sbt_set() = default;
+        sbt_set(const Alloc& a)noexcept :tree{ allocator_with_cookie<value_with_cookie<T, size_t>, Alloc, size_t > {a} }
         {}
-        avl_set(const avl_set& other) :sz{ other.sz }, tree{
+        sbt_set(const sbt_set& other) :sz{ other.sz }, tree{
             [](edge_const_proxy p) -> std::pair<cookie_wrapper<size_t>, const T&> { return {cookie_wrapper<size_t>{p->cookie()}, p->value()}; },
             parent_aware_binary_tree_functional::get_children,
             other.tree.root(),
             other.tree.get_allocator()
         }
         {}
-
-        void swap(avl_set& other)noexcept
+        void swap(sbt_set& other)noexcept
         {
             tree.swap(other.tree);
             using std::swap;
@@ -43,23 +41,24 @@ namespace Yc
             std::swap(sz, other.sz);
         }
 
-        avl_set& operator=(const avl_set& other)
+        sbt_set& operator=(const sbt_set& other)
         {
-            avl_set tmp{ other };
+            sbt_set tmp{ other };
             swap(tmp);
         }
 
-        avl_set(avl_set&& other) :sz{ other.sz }, tree{
-            std::move(other.tree())}, comp{std::move(other.comp)}
+        sbt_set(sbt_set&& other) :sz{ other.sz }, tree{
+            std::move(other.tree()) }, comp{ std::move(other.comp) }
         {
             other.clear();
         }
 
-        avl_set& operator=(avl_set&& other)
+        sbt_set& operator=(sbt_set&& other)
         {
-            avl_set tmp{ std::move(other) };
+            sbt_set tmp{ std::move(other) };
             swap(tmp);
         }
+
     private:
         template<class U>
         edge_const_proxy find_impl(U&& u)const noexcept
@@ -82,116 +81,113 @@ namespace Yc
             return r;
         }
 
-        // p指向的位置有节点，调用者保证
-        static void update_height(edge_const_proxy p)noexcept
+        void update_size(edge_const_proxy p)noexcept
         {
             auto [l, r] = p.get_children();
-            size_t l_height = l ? l->cookie() : 0;
-            size_t r_height = r ? r->cookie() : 0;
-            p->cookie() = std::max(l_height, r_height) + 1;
+            size_t l_sz = l ? l->cookie() : 0;
+            size_t r_sz = r ? r->cookie() : 0;
+            p->cookie() = l_sz + r_sz + 1;
         }
 
-        // p指向的位置有节点，调用者保证
-        static long long factor(edge_const_proxy p)noexcept
+        size_t node_size(edge_const_proxy p)noexcept
         {
-            auto [l, r] = p.get_children();
-            size_t l_height = l ? l->cookie() : 0;
-            size_t r_height = r ? r->cookie() : 0;
-            return (long long)r_height - (long long)l_height;
+            return p ? p->cookie() : 0;
         }
 
-        void fix_balance(edge_const_proxy p)noexcept
+        void fix_balance(edge_const_proxy n, bool flag)noexcept
         {
-            if (factor(p) < -1)
+            if (!n)
             {
-                edge_const_proxy q = p;
-                q.go_left();
-                if (factor(q) < 0)
-                {
-                    tree.right_rotate(p);
-                    q = p;
-                    p.go_right();
-                    update_height(p);
-                    update_height(q);
-                }
-                else
-                {
-                    tree.left_rotate(q);
-                    edge_const_proxy r = q;
-                    r.go_left();
-                    update_height(r);
-                    update_height(q);
-                    tree.right_rotate(p);
-                    q = p;
-                    p.go_right();
-                    update_height(p);
-                    update_height(q);
-                }
                 return;
             }
-            if (factor(p) > 1)
+            auto [l, r] = n.get_children();
+            if (!flag)
             {
-                edge_const_proxy q = p;
-                q.go_right();
-                if (factor(q) > 0)
-                {
-                    tree.left_rotate(p);
-                    q = p;
-                    p.go_left();
-                    update_height(p);
-                    update_height(q);
-                }
-                else
-                {
-                    tree.right_rotate(q);
-                    edge_const_proxy r = q;
-                    r.go_right();
-                    update_height(r);
-                    update_height(q);
-                    tree.left_rotate(p);
-                    q = p;
-                    p.go_left();
-                    update_height(p);
-                    update_height(q);
-                }
-                return;
-            }
-        }
-
-        void maintain(edge_const_proxy p)noexcept
-        {
-            while (p != tree.root())
-            {
-                p.go_up();
-                size_t old_height = p->cookie();
-                update_height(p);
-                if (p->cookie() == old_height && factor(p) >= -1 && factor(p) <= 1)
+                if (!l)
                 {
                     return;
                 }
-                fix_balance(p);
-            }
-        }
-
-        // 对刚刚放到树里面的节点的维护动作
-        void insert_post(edge_const_proxy p)noexcept
-        {
-            p->cookie() = 1;
-            
-            while (p != tree.root())
-            {
-                p.go_up();
-                size_t old_height = p->cookie();
-                update_height(p);
-                if (p->cookie() == old_height)
+                auto [ll, lr] = l.get_children();
+                if (node_size(ll) > node_size(r))
+                {
+                    tree.right_rotate(n);
+                    edge_const_proxy r1 = n;
+                    r1.go_right();
+                    update_size(r1);
+                    update_size(n);
+                }
+                else if (node_size(lr) > node_size(r))
+                {
+                    tree.left_rotate(l);
+                    edge_const_proxy ll1 = l;
+                    ll1.go_left();
+                    update_size(ll1);
+                    update_size(l);
+                    tree.right_rotate(n);
+                    edge_const_proxy r1 = n;
+                    r1.go_right();
+                    update_size(r1);
+                    update_size(n);
+                }
+                else
                 {
                     return;
                 }
-                fix_balance(p);
+            }
+            else
+            {
+                if (!r)
+                {
+                    return;
+                }
+                auto [rl, rr] = r.get_children();
+                if (node_size(rr) > node_size(l))
+                {
+                    tree.left_rotate(n);
+                    edge_const_proxy l1 = n;
+                    l1.go_left();
+                    update_size(l1);
+                    update_size(n);
+                }
+                else if (node_size(rl) > node_size(l))
+                {
+                    tree.right_rotate(r);
+                    edge_const_proxy rr1 = r;
+                    rr1.go_right();
+                    update_size(rr1);
+                    update_size(r);
+                    tree.left_rotate(n);
+                    edge_const_proxy l1 = n;
+                    l1.go_left();
+                    update_size(l1);
+                    update_size(n);
+                }
+                else
+                {
+                    return;
+                }
+            }
+            auto [l1, r1] = n.get_children();
+            fix_balance(l1, false);
+            fix_balance(r1, true);
+            fix_balance(n, true);
+            fix_balance(n, false);
+        }
+
+        void insert_post(edge_const_proxy n)noexcept
+        {
+            n->cookie() = 1;
+            while (n != tree.root())
+            {
+                edge_const_proxy tmp = n;
+                n.go_up();
+                ++n->cookie();
+                edge_const_proxy tmp2 = n;
+                tmp2.go_left();
+                fix_balance(n, tmp != tmp2);
             }
         }
 
-        // p位置必须没有节点，调用者保证
         template<class... Args>
         void emplace_impl(edge_const_proxy p, Args&&... args)
         {
@@ -207,35 +203,42 @@ namespace Yc
             insert_post(p);
         }
 
-        // p位置必须有节点，调用者保证
-        void erase_impl(edge_const_proxy p)noexcept
+        void erase_impl(edge_const_proxy n)noexcept
         {
-            auto [l, r] = p.get_children();
+            auto [l, r] = n.get_children();
             bool lf = (bool)l, rf = (bool)r;
 
             if (lf && rf)
             {
-                details::set_iterator<T, Alloc> tmp{ (node_const_proxy)p };
+                details::set_iterator<T, Alloc> tmp{ (node_const_proxy)n };
                 ++tmp;
-                edge_const_proxy q{tmp.p};
-                size_t old_cookie = p->cookie();
-                tree.swap_node(p, q);
-                p->cookie() = old_cookie;
-                p = q;
-                auto [l1, r1] = p->get_children();
+                edge_const_proxy q{ tmp.p };
+                size_t old_cookie_n = n->cookie();
+                tree.swap_node(n, q);
+                n->cookie() = old_cookie_n;
+                n = q;
+                auto [l1, r1] = n->get_children();
                 lf = (bool)l1;
                 rf = (bool)r1;
             }
 
             if (!lf && !rf)
             {
-                tree.erase(p);
+                size_t color_n = n->cookie();
+                tree.erase(n);
                 --sz;
-                maintain(p);
-                return;
+                while (n != tree.root())
+                {
+                    edge_const_proxy tmp = n;
+                    n.go_up();
+                    ++n->cookie();
+                    edge_const_proxy tmp2 = n;
+                    tmp2.go_left();
+                    fix_balance(n, tmp == tmp2);
+                }
             }
-            
-            auto tmp = tree.cut(p);
+
+            auto tmp = tree.cut(n);
             auto q = tmp.root();
             if (lf)
             {
@@ -245,10 +248,17 @@ namespace Yc
             {
                 q.go_right();
             }
-            tree.splice(p, q);
+            tree.splice(n, q);
             --sz;
-            maintain(p);
-            // tmp析构时进行实际的删除
+            while (n != tree.root())
+            {
+                edge_const_proxy tmp = n;
+                n.go_up();
+                ++n->cookie();
+                edge_const_proxy tmp2 = n;
+                tmp2.go_left();
+                fix_balance(n, tmp == tmp2);
+            }
         }
 
     public:
@@ -334,7 +344,7 @@ namespace Yc
             edge_const_proxy p = find_impl(value);
             if (p)
             {
-                return std::pair<iterator, bool>{ iterator{node_const_proxy{ p }}, false };
+                return std::pair<iterator, bool>{ iterator{ node_const_proxy{ p } }, false };
             }
             emplace_impl(p, value);
             return std::pair<iterator, bool>{ iterator{ node_const_proxy{ p } }, true };
@@ -449,5 +459,4 @@ namespace Yc
             return comp;
         }
     };
-
 }

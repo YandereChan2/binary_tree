@@ -74,7 +74,7 @@ namespace Yc
             }
             bool null()const noexcept
             {
-                return bool{ child() };
+                return !bool{ child() };
             }
             explicit operator bool()const noexcept
             {
@@ -158,18 +158,21 @@ namespace Yc
             }
         public:
             parent_aware_binary_tree_edge_const_proxy() = default;
-            parent_aware_binary_tree_edge_const_proxy(const parent_aware_binary_tree_edge_proxy&) = default;
+            parent_aware_binary_tree_edge_const_proxy(const parent_aware_binary_tree_edge_const_proxy&) = default;
             parent_aware_binary_tree_edge_const_proxy(pointer ptr, bool left)noexcept :parent{ ptr }, left{ left }
             {
             }
+            parent_aware_binary_tree_edge_const_proxy(parent_aware_binary_tree_edge_proxy<T, Alloc> p)noexcept :
+                parent_aware_binary_tree_edge_const_proxy{p.parent, p.left}
+            {}
             parent_aware_binary_tree_edge_const_proxy& operator=(const parent_aware_binary_tree_edge_const_proxy&) = default;
             bool valid()const noexcept
             {
-                return bool{ parent };
+                return bool( parent );
             }
             bool null()const noexcept
             {
-                return bool{ child() };
+                return !bool( child() );
             }
             explicit operator bool()const noexcept
             {
@@ -460,7 +463,7 @@ namespace Yc
         // 内部虚拟节点，只能被节点代理指代
         // 只有左子节点
         details::parent_aware_binary_tree_node_base1<place_holder_allocator> root_node{};
-        node_pointer pointer_to(const details::parent_aware_binary_tree_empty_placeholder& ref)noexcept
+        node_pointer pointer_to(const details::parent_aware_binary_tree_empty_placeholder& ref)const noexcept
         {
             return std::pointer_traits<node_pointer>::pointer_to((details::parent_aware_binary_tree_empty_placeholder&)ref);
         }
@@ -512,11 +515,11 @@ namespace Yc
         {
             return parent_of_nroot().go_left();
         }
-        node_proxy nroot()const noexcept
+        node_const_proxy nroot()const noexcept
         {
             return parent_of_nroot().go_left();
         }
-        node_proxy cnroot()const noexcept
+        node_const_proxy cnroot()const noexcept
         {
             return parent_of_cnroot().go_left();
         }
@@ -665,7 +668,7 @@ namespace Yc
         }
         parent_aware_binary_tree cut(edge_const_proxy p)noexcept
         {
-            edge_const_proxy::pointer& place = p.child();
+            typename edge_const_proxy::pointer& place = p.child();
             parent_aware_binary_tree ret{ alloc };
             ret.root_node.left = std::exchange(place, {});
             
@@ -684,7 +687,7 @@ namespace Yc
         {
             if (!p.null())
             {
-                edge_const_proxy::pointer& place = p.child();
+                typename edge_const_proxy::pointer& place = p.child();
                 while (true)
                 {
                     auto [l, r] = p.get_children();
@@ -700,7 +703,7 @@ namespace Yc
                     if (!r_null)
                     {
                         erase(l);
-                        edge_const_proxy::pointer right = r.child();
+                        typename edge_const_proxy::pointer right = r.child();
                         std::allocator_traits<Alloc>::destroy(alloc, (T*)p.operator->());
                         deallocate_node(place);
                         place = right;
@@ -708,7 +711,7 @@ namespace Yc
                     }
                     if ((!l_null) && r_null)
                     {
-                        edge_const_proxy::pointer left = l.child();
+                        typename edge_const_proxy::pointer left = l.child();
                         std::allocator_traits<Alloc>::destroy(alloc, (T*)p.operator->());
                         deallocate_node(place);
                         place = left;
@@ -767,7 +770,10 @@ namespace Yc
         {
             parent_aware_binary_tree ret{ cut(to) };
             to.child() = std::exchange(from.child(), {});
-            static_cast<node_type&>(to.child()).parent = to.parent;
+            if (to)
+            {
+                static_cast<node_type&>(*to.child()).parent = to.parent;
+            }
             return ret;
         }
 
@@ -793,8 +799,8 @@ namespace Yc
 
         static void swap_sub_tree(edge_const_proxy l, edge_const_proxy r)noexcept
         {
-            edge_const_proxy::pointer& place_l = l.child();
-            edge_const_proxy::pointer& place_r = r.child();
+            typename edge_const_proxy::pointer& place_l = l.child();
+            typename edge_const_proxy::pointer& place_r = r.child();
             std::swap(place_l, place_r);
             if (place_l)
             {
@@ -861,16 +867,28 @@ namespace Yc
             edge_const_proxy q = p;
             q.go_right();
             parent_aware_binary_tree t1 = cut(q); // <D>-<rC>-<E>
-            parent_aware_binary_tree t2 = splice(*this, p, t1, t1.root()); //<B>-<rA>
+            parent_aware_binary_tree t2 = splice(p, t1.root()); //<B>-<rA>
             //     |
             //    <C>                 <A>
             //   /   \                /
             //  <D>  <E>            <B>
             q = p;
             q.go_left();
-            parent_aware_binary_tree t3 = splice(*this, q, t2, t2.root());
+            parent_aware_binary_tree t3 = splice(q, t2.root());
             q.go_right();
-            splice(*this, q, t3, t3.root());
+            splice(q, t3.root());
+            if (!t1.empty())
+            {
+                std::unreachable();
+            }
+            if (!t2.empty())
+            {
+                std::unreachable();
+            }
+            if (!t3.empty())
+            {
+                std::unreachable();
+            }
         }
 
         void right_rotate(edge_const_proxy p)noexcept
@@ -878,12 +896,24 @@ namespace Yc
             edge_const_proxy q = p;
             q.go_left();
             parent_aware_binary_tree t1 = cut(q);
-            parent_aware_binary_tree t2 = splice(*this, p, t1, t1.root());
+            parent_aware_binary_tree t2 = splice(p, t1.root());
             q = p;
             q.go_right();
-            parent_aware_binary_tree t3 = splice(*this, q, t2, t2.root());
+            parent_aware_binary_tree t3 = splice(q, t2.root());
             q.go_left();
-            splice(*this, q, t3, t3.root());
+            splice(q, t3.root());
+            if (!t1.empty())
+            {
+                std::unreachable();
+            }
+            if (!t2.empty())
+            {
+                std::unreachable();
+            }
+            if (!t3.empty())
+            {
+                std::unreachable();
+            }
         }
 
         bool checked_left_rotate(edge_const_proxy p)noexcept
