@@ -1,4 +1,4 @@
-# `Yc::swap(Yc::binary_tree)`
+# `Yc::swap(Yc::parent_aware_binary_tree)`
 
 ```C++
 template<class T, class Alloc>

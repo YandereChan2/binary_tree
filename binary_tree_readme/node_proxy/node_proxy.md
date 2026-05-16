@@ -34,7 +34,7 @@ bool null()const noexcept;
 explicit operator bool()const noexcept;
 ```
 
-向 `bool` 的按语境转换。
+向 `bool` 的[按语境转换](https://zh.cppreference.com/w/cpp/language/implicit_conversion)。
 
 #### 可能的实现
 
@@ -55,7 +55,7 @@ proxy& go_left()noexcept;
 proxy& go_right()noexcept;
 ```
 
-将代理对象转移至所指代的 _二叉树_ 所保有的左右 _树位置_ 上的 _二叉树_ 。如果其不按语境转换成 `true` ，那么行为未定义。如果对应的 _树位置_ 上没有 _二叉树_ ，那么会使其 `null() == true` 。其返回 `*this` 以支持连续调用。
+将代理对象转移至所指代的 _二叉树_ 所保有的左右 _树位置_ 上的 _二叉树_ 。如果其不[按语境转换](https://zh.cppreference.com/w/cpp/language/implicit_conversion)成 `true` ，那么行为[未定义](https://zh.cppreference.com/w/cpp/language/ub)。如果对应的 _树位置_ 上没有 _二叉树_ ，那么会使其 `null() == true` 。其返回 `*this` 以支持连续调用。
 
 ### operator*, operator->
 
@@ -67,7 +67,19 @@ T& operator*()const noexcept;
 T* operator->()const noexcept;
 ```
 
-运算符重载，以提供访问其指代的 _二叉树_ 所保有的元素的能力。如果其不按语境转换成 `true` ，那么行为未定义。
+运算符重载，以提供访问其指代的 _二叉树_ 所保有的元素的能力。如果其不[按语境转换](https://zh.cppreference.com/w/cpp/language/implicit_conversion)成 `true` ，那么行为[未定义](https://zh.cppreference.com/w/cpp/language/ub)。
+
+### get_left, get_right
+
+```C++
+proxy get_left()const noexcept;
+```
+
+```C++
+proxy get_right()const noexcept;
+```
+
+返回指代其所指代的 _二叉树_ 所保有的左右 _树位置_ 上的 _二叉树_ 的代理对象。如果其不[按语境转换](https://zh.cppreference.com/w/cpp/language/implicit_conversion)成 `true` ，那么行为[未定义](https://zh.cppreference.com/w/cpp/language/ub)。
 
 ### get_children
 
@@ -75,7 +87,7 @@ T* operator->()const noexcept;
 std::pair<edge(_const)_proxy, edge(_const)_proxy> get_children()const noexcept;
 ```
 
-获取指代其指代的 _二叉树_ 所保有的左右 _树位置_ 的两个 [_`edge`_](../edge_proxy/edge_proxy.md) 代理对象。如果其不按语境转换成 `true` ，那么行为未定义。
+获取指代其指代的 _二叉树_ 所保有的左右 _树位置_ 的两个 [_`edge`_](../edge_proxy/edge_proxy.md) 代理对象。如果其不[按语境转换](https://zh.cppreference.com/w/cpp/language/implicit_conversion)成 `true` ，那么行为[未定义](https://zh.cppreference.com/w/cpp/language/ub)。
 
 ## 非成员函数
 

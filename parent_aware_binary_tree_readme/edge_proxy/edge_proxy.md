@@ -1,4 +1,4 @@
-# `Yc::binary_tree<T, Allocator>::edge_proxy` , `Yc::binary_tree<T, Allocator>::edge_const_proxy`
+# `Yc::parent_aware_binary_tree<T, Allocator>::edge_proxy` , `Yc::parent_aware_binary_tree<T, Allocator>::edge_const_proxy`
 
 指代一个 _树位置_ ，并提供对该 _树位置_ 上的 _二叉树_ 保有的元素的访问。
 
@@ -63,6 +63,14 @@ proxy& go_right()noexcept;
 
 将代理对象转移至所指代的 _树位置_ 上的 _二叉树_ 所保有的左右 _树位置_ 上。如果其不[按语境转换](https://zh.cppreference.com/w/cpp/language/implicit_conversion)成 `true` ，那么行为[未定义](https://zh.cppreference.com/w/cpp/language/ub)。其返回 `*this` 以支持连续调用。
 
+### go_up
+
+```C++
+proxy& go_up()noexcept;
+```
+
+将代理对象转移到提供其所指代的 _树位置_ 的 _二叉树_ 所占据的 _树位置_ 上。如果其所指代的树位置由 _虚拟二叉树_ 提供，那么行为[未定义](https://zh.cppreference.com/w/cpp/language/ub)。其返回 `*this` 以支持连续调用。
+
 ### operator*, operator->
 
 ```C++
@@ -87,6 +95,14 @@ proxy get_right()const noexcept;
 
 返回指代其所指代的 _树位置_ 上的 _二叉树_ 所保有的左右 _树位置_ 的代理对象。如果其不[按语境转换](https://zh.cppreference.com/w/cpp/language/implicit_conversion)成 `true` ，那么行为[未定义](https://zh.cppreference.com/w/cpp/language/ub)。
 
+### get_parent
+
+```C++
+proxy get_parent()const noexcept;
+```
+
+返回指代其所指代的 _树位置_ 的 _二叉树_ 所占据的 _树位置_ 的代理对象。如果其所指代的树位置由 _虚拟二叉树_ 提供，那么行为[未定义](https://zh.cppreference.com/w/cpp/language/ub)。
+
 ### get_children
 
 ```C++
@@ -104,9 +120,3 @@ bool operator==(proxy l, proxy r)noexcept;
 ```
 
 当且仅当其都无效，或指代同一个 _树位置_ 时返回 `true` 。
-
-## 辅助类
-
-### std::hash<edge_proxy>,std::hash<edge_const_proxy>
-
-对于代理对象[启用](https://zh.cppreference.com/w/cpp/utility/hash)的 [`std::hash`](https://zh.cppreference.com/w/cpp/utility/hash) 特化。保证对相等的 `edge_proxy` 与 `edge_const_proxy` 返回相同值。

@@ -1,7 +1,7 @@
 # `Yc::binary_tree<T,Allocator>::cut`
 
 ```C++
-binary_tree emplace(edge_const_proxy p)noexcept;
+binary_tree cut(edge_const_proxy p)noexcept;
 ```
 
 将 `p` 所指代的 _树位置_ 处的 _二叉树_ 通过返回值转移到外部。

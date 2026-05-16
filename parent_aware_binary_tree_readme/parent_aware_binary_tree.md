@@ -1,24 +1,26 @@
-# Yc::binary_tree
+# Yc::parent_aware_binary_tree
 
-在文件 `"binary_tree.h"` 定义
+在文件 `"parent_aware_binary_tree.h"` 定义
 
 ```C++
 template<
     class T,
     class Allocator = std::allocator<T>
->class binary_tree;
+>class parent_aware_binary_tree;
 ```
 
-`Yc::binary_tree` 是对不反向关联父节点的二叉树数据结构的封装。
+`Yc::parent_aware_binary_tree` 是对反向关联父节点的二叉树的封装。这种二叉树可以在常数时间内从节点访问父节点。
 
 此处 _二叉树_ 的定义如下：
-每一个 _二叉树_ 占据一个 _树位置_ ，一个 _树位置_ 或空闲，或存在一个 _二叉树_ 。一个 _二叉树_ 保有左右两个 _树位置_ 以及一个 `T` 类型的元素，两个 _树位置_ 上可以有也可以没有其他 _二叉树_ 。每个 `Yc::binary_tree` 对象内部保有一个 _树位置_ 。
+每一个 _二叉树_ 占据一个 _树位置_ ，一个 _树位置_ 或空闲，或存在一个 _二叉树_ 。一个 _二叉树_ 保有左右两个 _树位置_ 以及一个 `T` 类型的元素，两个 _树位置_ 上可以有也可以没有其他 _二叉树_ 。另外和 `Yc::binary_tree` 不同，还有一种 _虚拟二叉树_ ，其只有左边的 _树位置_ 。每个 `Yc::parent_aware_binary_tree` 对象内部保有一个 _虚拟二叉树_ 。
 
 当一个 _树位置_ 生存期结束时，其上的 _二叉树_ 要么提前转移至其他 _树位置_ ，要么提前结束。换言之， _树位置_ 只能在空闲时结束其生存期，否则行为[未定义](https://zh.cppreference.com/w/cpp/language/ub)。
 
 在本库中，使用 [`edge_proxy`](edge_proxy/edge_proxy.md) 指代一个 _树位置_ ，使用 [`node_proxy`](node_proxy/node_proxy.md) 指代一个 _二叉树_ 。
 
-如果上面的定义让人难以理解，可以先查看[该文档](easy_for_understand.md)。
+如果上面的定义让人难以理解，可以先查看[该文档](easy_for_understand.md)。在实现细节层面，[`edge_proxy`](edge_proxy/edge_proxy.md)的实现和 `Yc::binary_tree` 对应设施有一定差异。
+
+有意使 `Yc::parent_aware_binary_tree` 的接口和 `Yc::binary_tree` 保持一致。
 
 ## 模板参数
 
@@ -42,16 +44,18 @@ template<
 
 |||
 |:-|:-|
-|[（构造函数）](constructor.md)|构造 `binary_tree` <br>（公开成员函数）|
-|[（析构函数）](destructor.md)|析构 `binary_tree` <br>（公开成员函数）|
+|[（构造函数）](constructor.md)|构造 `parent_aware_binary_tree` <br>（公开成员函数）|
+|[（析构函数）](destructor.md)|析构 `parent_aware_binary_tree` <br>（公开成员函数）|
 |[`get_allocator`](get_allocator.md)|返回关联的分配器<br>（公开成员函数）|
 
 ### 代理
 
 |||
 |:-|:-|
-|[`root`<br>`croot`](root.md)|返回 `binary_tree` 对象内部的 _树位置_ 的代理。（公开成员函数）|
-|[`nroot`<br>`cnroot`](nroot.md)|返回处于 `binary_tree` 对象内部的 _树位置_ 上的 _二叉树_ 的代理。（公开成员函数）|
+|[`root`<br>`croot`](root.md)|返回 `parent_aware_binary_tree` 对象内部的 _虚拟二叉树_ 的左 _树位置_ 的代理。（公开成员函数）|
+|[`nroot`<br>`cnroot`](nroot.md)|返回处于 `parent_aware_binary_tree` 对象内部的 _虚拟二叉树_ 的左 _树位置_ 上的 _二叉树_ 的代理。（公开成员函数）|
+|[`parent_of_nroot`<br>`parent_of_cnroot`](parent_of_nroot.md)|返回处于 `parent_aware_binary_tree` 对象内部的 _虚拟二叉树_ 的代理。（公开成员函数）|
+
 
 ### 修改器
 
