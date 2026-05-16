@@ -79,12 +79,17 @@ namespace Yc
             {
                 return std::addressof(static_cast<binary_tree_node<T, Alloc>&>(**ptr).data.data);
             }
+            binary_tree_edge_proxy get_left()const noexcept
+            {
+                return { std::pointer_traits<pointer_to_pointer>::pointer_to(static_cast<binary_tree_node<T, Alloc>&>(**ptr).left) };
+            }
+            binary_tree_edge_proxy get_right()const noexcept
+            {
+                return { std::pointer_traits<pointer_to_pointer>::pointer_to(static_cast<binary_tree_node<T, Alloc>&>(**ptr).right) };
+            }
             std::pair<binary_tree_edge_proxy, binary_tree_edge_proxy> get_children()const noexcept
             {
-                std::pair<binary_tree_edge_proxy, binary_tree_edge_proxy> ret{ *this, *this };
-                ret.first.go_left();
-                ret.second.go_right();
-                return ret;
+                return {get_left(), get_right()};
             }
             friend bool operator==(binary_tree_edge_proxy l, binary_tree_edge_proxy r)noexcept
             {
@@ -158,12 +163,17 @@ namespace Yc
             {
                 return std::addressof(static_cast<binary_tree_node<T, Alloc>&>(**ptr).data.data);
             }
+            binary_tree_edge_const_proxy get_left()const noexcept
+            {
+                return { std::pointer_traits<pointer_to_pointer>::pointer_to(static_cast<binary_tree_node<T, Alloc>&>(**ptr).left) };
+            }
+            binary_tree_edge_const_proxy get_right()const noexcept
+            {
+                return { std::pointer_traits<pointer_to_pointer>::pointer_to(static_cast<binary_tree_node<T, Alloc>&>(**ptr).right) };
+            }
             std::pair<binary_tree_edge_const_proxy, binary_tree_edge_const_proxy> get_children()const noexcept
             {
-                std::pair<binary_tree_edge_const_proxy, binary_tree_edge_const_proxy> ret{ *this, *this };
-                ret.first.go_left();
-                ret.second.go_right();
-                return ret;
+                return { get_left(), get_right() };
             }
             friend bool operator==(binary_tree_edge_const_proxy l, binary_tree_edge_const_proxy r)noexcept
             {
@@ -230,6 +240,14 @@ namespace Yc
             {
                 ptr = static_cast<binary_tree_node<T, Alloc>&>(*ptr).right;
                 return *this;
+            }
+            binary_tree_node_proxy get_left()const noexcept
+            {
+                return { static_cast<binary_tree_node<T, Alloc>&>(*ptr).left };
+            }
+            binary_tree_node_proxy get_right()const noexcept
+            {
+                return { static_cast<binary_tree_node<T, Alloc>&>(*ptr).right };
             }
             std::pair<binary_tree_edge_proxy<T, Alloc>, binary_tree_edge_proxy<T, Alloc>> get_children()const
             {
@@ -305,6 +323,14 @@ namespace Yc
             {
                 ptr = static_cast<binary_tree_node<T, Alloc>&>(*ptr).right;
                 return *this;
+            }
+            binary_tree_node_const_proxy get_left()const noexcept
+            {
+                return { static_cast<binary_tree_node<T, Alloc>&>(*ptr).left };
+            }
+            binary_tree_node_const_proxy get_right()const noexcept
+            {
+                return { static_cast<binary_tree_node<T, Alloc>&>(*ptr).right };
             }
             std::pair<binary_tree_edge_const_proxy<T, Alloc>, binary_tree_edge_const_proxy<T, Alloc>> get_children()const
             {
@@ -769,13 +795,7 @@ namespace Yc
         {
             return emplace(p, std::move(v));
         }
-        binary_tree splice(edge_const_proxy to, binary_tree& ,edge_const_proxy from)noexcept
-        {
-            binary_tree ret{ cut(to) };
-            *(to.ptr) = std::exchange(*(from.ptr), {});
-            return ret;
-        }
-        binary_tree splice(edge_const_proxy to, binary_tree&&, edge_const_proxy from)noexcept
+        binary_tree splice(edge_const_proxy to ,edge_const_proxy from)noexcept
         {
             binary_tree ret{ cut(to) };
             *(to.ptr) = std::exchange(*(from.ptr), {});
@@ -783,17 +803,11 @@ namespace Yc
         }
         binary_tree splice(edge_const_proxy p, binary_tree& tree)noexcept
         {
-            return splice(p, tree, tree.root());
+            return splice(p, tree.root());
         }
         binary_tree splice(edge_const_proxy p, binary_tree&& tree)noexcept
         {
-            return splice(p, tree, tree.root());
-        }
-        template<class BT>
-            requires std::is_same_v<std::remove_reference_t<BT>, binary_tree>
-        static void swap_sub_tree(BT&&, edge_const_proxy l, BT&& ,edge_const_proxy r)noexcept
-        {
-            std::swap(*(l.ptr), *(r.ptr));
+            return splice(p, tree.root());
         }
 
         static void swap_sub_tree(edge_const_proxy l, edge_const_proxy r)noexcept
@@ -808,7 +822,7 @@ namespace Yc
                 using namespace std;
                 swap(alloc, other.alloc);
             }
-            swap_sub_tree(*this, root(), other, other.root());
+            swap_sub_tree(root(), other.root());
         }
         ~binary_tree()
         {
@@ -822,31 +836,25 @@ namespace Yc
             //  <B>  <C>     =====>       <A> <E>
             //       / \                  / \
             //     <D> <E>              <B> <D>
-            edge_const_proxy q = p;
-            q.go_right();
-            binary_tree t1 = cut(q); // <D>-<rC>-<E>
-            binary_tree t2 = splice(*this, p, t1, t1.root()); //<B>-<rA>
+            binary_tree t1 = cut(p.get_right()); // <D>-<rC>-<E>
+            binary_tree t2 = splice(p, t1); //<B>-<rA>
             //     |
             //    <C>                 <A>
             //   /   \                /
             //  <D>  <E>            <B>
-            q = p;
-            q.go_left();
-            binary_tree t3 = splice(*this, q, t2, t2.root());
-            q.go_right();
-            splice(*this, q, t3, t3.root());
+            p.go_left();
+            binary_tree t3 = splice(p, t2);
+            p.go_right();
+            splice(p, t3);
         }
         void right_rotate(edge_const_proxy p)noexcept
         {
-            edge_const_proxy q = p;
-            q.go_left();
-            binary_tree t1 = cut(q);
-            binary_tree t2 = splice(*this, p, t1, t1.root());
-            q = p;
-            q.go_right();
-            binary_tree t3 = splice(*this, q, t2, t2.root());
-            q.go_left();
-            splice(*this, q, t3, t3.root());
+            binary_tree t1 = cut(p.get_left());
+            binary_tree t2 = splice(p, t1);
+            p.go_right();
+            binary_tree t3 = splice(p, t2);
+            p.go_left();
+            splice(p, t3);
         }
         bool checked_left_rotate(edge_const_proxy p)noexcept
         {

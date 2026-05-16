@@ -107,12 +107,22 @@ namespace Yc
             {
                 return std::addressof(static_cast<parent_aware_binary_tree_node<T, Alloc>&>(*child()).data.data);
             }
+            parent_aware_binary_tree_edge_proxy get_left()const noexcept
+            {
+                return { child(), true };
+            }
+            parent_aware_binary_tree_edge_proxy get_right()const noexcept
+            {
+                return { child(), false };
+            }
+            parent_aware_binary_tree_edge_proxy get_parent()const noexcept
+            {
+                pointer parent_of_parent = static_cast<parent_aware_binary_tree_node_base<Alloc>&>(*parent).parent;
+                return { parent_of_parent, static_cast<parent_aware_binary_tree_node_base1<Alloc>&>(*parent_of_parent).left == parent };
+            }
             std::pair<parent_aware_binary_tree_edge_proxy, parent_aware_binary_tree_edge_proxy> get_children()const noexcept
             {
-                std::pair<parent_aware_binary_tree_edge_proxy, parent_aware_binary_tree_edge_proxy> ret{ *this, *this };
-                ret.first.go_left();
-                ret.second.go_right();
-                return ret;
+                return { get_left(), get_right() };
             }
             friend bool operator==(parent_aware_binary_tree_edge_proxy l, parent_aware_binary_tree_edge_proxy r)noexcept
             {
@@ -205,12 +215,22 @@ namespace Yc
             {
                 return std::addressof(static_cast<parent_aware_binary_tree_node<T, Alloc>&>(*child()).data.data);
             }
+            parent_aware_binary_tree_edge_const_proxy get_left()const noexcept
+            {
+                return { child(), true };
+            }
+            parent_aware_binary_tree_edge_const_proxy get_right()const noexcept
+            {
+                return { child(), false };
+            }
+            parent_aware_binary_tree_edge_const_proxy get_parent()const noexcept
+            {
+                pointer parent_of_parent = static_cast<parent_aware_binary_tree_node_base<Alloc>&>(*parent).parent;
+                return { parent_of_parent, static_cast<parent_aware_binary_tree_node_base1<Alloc>&>(*parent_of_parent).left == parent };
+            }
             std::pair<parent_aware_binary_tree_edge_const_proxy, parent_aware_binary_tree_edge_const_proxy> get_children()const noexcept
             {
-                std::pair<parent_aware_binary_tree_edge_const_proxy, parent_aware_binary_tree_edge_const_proxy> ret{ *this, *this };
-                ret.first.go_left();
-                ret.second.go_right();
-                return ret;
+                return { get_left(), get_right() };
             }
             friend bool operator==(parent_aware_binary_tree_edge_const_proxy l, parent_aware_binary_tree_edge_const_proxy r)noexcept
             {
@@ -285,6 +305,18 @@ namespace Yc
             T* operator->()const noexcept
             {
                 return std::addressof(static_cast<parent_aware_binary_tree_node<T, Alloc>&>(*node).data.data);
+            }
+            parent_aware_binary_tree_node_proxy get_left()const noexcept
+            {
+                return { static_cast<parent_aware_binary_tree_node_base1<Alloc>&>(*node).left };
+            }
+            parent_aware_binary_tree_node_proxy get_right()const noexcept
+            {
+                return { static_cast<parent_aware_binary_tree_node_base1<Alloc>&>(*node).right };
+            }
+            parent_aware_binary_tree_node_proxy get_parent()const noexcept
+            {
+                return { static_cast<parent_aware_binary_tree_node_base1<Alloc>&>(*node).parent };
             }
             std::pair<parent_aware_binary_tree_edge_proxy<T, Alloc>, parent_aware_binary_tree_edge_proxy<T, Alloc>> get_children()const noexcept
             {
@@ -373,6 +405,18 @@ namespace Yc
             const T* operator->()const noexcept
             {
                 return std::addressof(static_cast<parent_aware_binary_tree_node<T, Alloc>&>(*node).data.data);
+            }
+            parent_aware_binary_tree_node_const_proxy get_left()const noexcept
+            {
+                return { static_cast<parent_aware_binary_tree_node_base1<Alloc>&>(*node).left };
+            }
+            parent_aware_binary_tree_node_const_proxy get_right()const noexcept
+            {
+                return { static_cast<parent_aware_binary_tree_node_base1<Alloc>&>(*node).right };
+            }
+            parent_aware_binary_tree_node_const_proxy get_parent()const noexcept
+            {
+                return { static_cast<parent_aware_binary_tree_node_base1<Alloc>&>(*node).parent };
             }
             std::pair<parent_aware_binary_tree_edge_const_proxy<T, Alloc>, parent_aware_binary_tree_edge_const_proxy<T, Alloc>> get_children()const noexcept
             {
@@ -777,16 +821,6 @@ namespace Yc
             return ret;
         }
 
-        parent_aware_binary_tree splice(edge_const_proxy to, parent_aware_binary_tree&, edge_const_proxy from)noexcept
-        {
-            return splice(to, from);
-        }
-
-        parent_aware_binary_tree splice(edge_const_proxy to, parent_aware_binary_tree&&, edge_const_proxy from)noexcept
-        {
-            return splice(to, from);
-        }
-
         parent_aware_binary_tree splice(edge_const_proxy p, parent_aware_binary_tree& tree)noexcept
         {
             return splice(p, tree.root());
@@ -864,19 +898,16 @@ namespace Yc
             //  <B>  <C>     =====>       <A> <E>
             //       / \                  / \
             //     <D> <E>              <B> <D>
-            edge_const_proxy q = p;
-            q.go_right();
-            parent_aware_binary_tree t1 = cut(q); // <D>-<rC>-<E>
+            parent_aware_binary_tree t1 = cut(p.get_right()); // <D>-<rC>-<E>
             parent_aware_binary_tree t2 = splice(p, t1.root()); //<B>-<rA>
             //     |
             //    <C>                 <A>
             //   /   \                /
             //  <D>  <E>            <B>
-            q = p;
-            q.go_left();
-            parent_aware_binary_tree t3 = splice(q, t2.root());
-            q.go_right();
-            splice(q, t3.root());
+            p.go_left();
+            parent_aware_binary_tree t3 = splice(p, t2.root());
+            p.go_right();
+            splice(p, t3.root());
             if (!t1.empty())
             {
                 std::unreachable();
@@ -893,15 +924,12 @@ namespace Yc
 
         void right_rotate(edge_const_proxy p)noexcept
         {
-            edge_const_proxy q = p;
-            q.go_left();
-            parent_aware_binary_tree t1 = cut(q);
+            parent_aware_binary_tree t1 = cut(p.get_left());
             parent_aware_binary_tree t2 = splice(p, t1.root());
-            q = p;
-            q.go_right();
-            parent_aware_binary_tree t3 = splice(q, t2.root());
-            q.go_left();
-            splice(q, t3.root());
+            p.go_right();
+            parent_aware_binary_tree t3 = splice(p, t2.root());
+            p.go_left();
+            splice(p, t3.root());
             if (!t1.empty())
             {
                 std::unreachable();

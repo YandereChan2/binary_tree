@@ -64,27 +64,33 @@ namespace Yc
         template<class U>
         edge_const_proxy find_impl(U&& u)const noexcept
         {
+            edge_const_proxy n{}; // 候选的节点
             edge_const_proxy r = tree.root();
-            while (r)
+            while (!r.null())
             {
-                if (comp(u, r->value()))
-                {
-                    r.go_left();
-                    continue;
-                }
                 if (comp(r->value(), u))
                 {
+                    // r比查找值小，去右子树
                     r.go_right();
-                    continue;
                 }
-                break;
+                else
+                {
+                    // r >= 查找值，记录候选
+                    n = r;
+                    r.go_left();
+                }
+            }
+            // 显然n >= 查找值，如果同时查找值 >= n，那么按照相等处理
+            if (n.valid() && !comp(u, n->value()))
+            {
+                return n;
             }
             return r;
         }
 
         size_t color(edge_const_proxy p)const noexcept
         {
-            if (p)
+            if (!p.null()) [[likely]]
             {
                 return p->cookie();
             }
@@ -93,22 +99,20 @@ namespace Yc
 
         void insert_post(edge_const_proxy n)noexcept
         {
-            if (n == tree.root())
+            if (n == tree.root()) [[unlikely]]
             {
                 n->cookie() = black;
                 return;
             }
 
             n->cookie() = red;
-            edge_const_proxy p = n;
-            p.go_up();
+            edge_const_proxy p = n.get_parent();
             if (p->cookie() == black)
             {
                 return;
             }
 
-            edge_const_proxy g = p;
-            g.go_up();
+            edge_const_proxy g = p.get_parent();
             auto [p1, p2] = g.get_children();
             bool p_l = p == p1;
             edge_const_proxy& u = p_l ? p2 : p1;
@@ -121,8 +125,7 @@ namespace Yc
                 return;
             }
 
-            auto [n1, n2] = p.get_children();
-            bool n_l = n == n1;
+            bool n_l = n == p.get_left();
             if (n_l != p_l)
             {
                 if (n_l)
@@ -166,7 +169,7 @@ namespace Yc
         void erase_impl(edge_const_proxy n)noexcept
         {
             auto [l, r] = n.get_children();
-            bool lf = (bool)l, rf = (bool)r;
+            bool lf = !l.null(), rf = !r.null();
 
             if (lf && rf)
             {
@@ -180,8 +183,8 @@ namespace Yc
                 q->cookie() = old_cookie_q;
                 n = q;
                 auto [l1, r1] = n->get_children();
-                lf = (bool)l1;
-                rf = (bool)r1;
+                lf = !l1.null();
+                rf = !r1.null();
             }
 
             if (!lf && !rf)
@@ -195,8 +198,7 @@ namespace Yc
                 }
                 while (true)
                 {
-                    edge_const_proxy p = n;
-                    p.go_up();
+                    edge_const_proxy p = n.get_parent();
                     auto [n1, n2] = p.get_children();
                     bool n_l = n == n1;
                     edge_const_proxy s = n_l ? n2 : n1;
@@ -268,16 +270,7 @@ namespace Yc
                 }
             }
 
-            auto tmp = tree.cut(n);
-            auto q = tmp.root();
-            if (lf)
-            {
-                q.go_left();
-            }
-            else
-            {
-                q.go_right();
-            }
+            edge_const_proxy q = lf ? n.get_left() : n.get_right();
             tree.splice(n, q);
             --sz;
             n->cookie() = black;
@@ -415,7 +408,7 @@ namespace Yc
         size_t erase(const value_type& k)noexcept
         {
             edge_const_proxy p = find_impl(k);
-            if (p)
+            if (!p.null())
             {
                 erase_impl(p);
                 return 1;
@@ -426,7 +419,7 @@ namespace Yc
         const_iterator find(const value_type& key)const
         {
             edge_const_proxy p = find_impl(key);
-            if (p)
+            if (!p.null())
             {
                 return { node_const_proxy{p} };
             }

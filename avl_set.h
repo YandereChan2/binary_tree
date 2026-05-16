@@ -64,20 +64,26 @@ namespace Yc
         template<class U>
         edge_const_proxy find_impl(U&& u)const noexcept
         {
+            edge_const_proxy n{}; // 候选的节点
             edge_const_proxy r = tree.root();
-            while (r)
+            while (!r.null())
             {
-                if (comp(u, r->value()))
-                {
-                    r.go_left();
-                    continue;
-                }
                 if (comp(r->value(), u))
                 {
+                    // r比查找值小，去右子树
                     r.go_right();
-                    continue;
                 }
-                break;
+                else
+                {
+                    // r >= 查找值，记录候选
+                    n = r;
+                    r.go_left();
+                }
+            }
+            // 显然n >= 查找值，如果同时查找值 >= n，那么按照相等处理
+            if (n.valid() && !comp(u, n->value()))
+            {
+                return n;
             }
             return r;
         }
