@@ -52,20 +52,21 @@ namespace Yc
         {
             using pointer_to_pointer = std::allocator_traits<Alloc>::template rebind_traits<typename std::allocator_traits<Alloc>::pointer>::pointer;
             using pointer = std::allocator_traits<Alloc>::pointer;
-
-            bool left{};
+            static constexpr inline pointer parent_aware_binary_tree_node_base1<Alloc>::*
+                l = &parent_aware_binary_tree_node_base1<Alloc>::left;
+            static constexpr inline pointer parent_aware_binary_tree_node_base1<Alloc>::*
+                r = (pointer parent_aware_binary_tree_node_base1<Alloc>::*)
+                &parent_aware_binary_tree_node_base<Alloc>::right;
+            pointer parent_aware_binary_tree_node_base1<Alloc>::* ch = l;
             pointer parent{};
             pointer& child()const noexcept
             {
-                if (left) {
-                    return static_cast<parent_aware_binary_tree_node_base1<Alloc>&>(*parent).left;
-                } 
-                return static_cast<parent_aware_binary_tree_node_base<Alloc>&>(*parent).right;
+                return static_cast<parent_aware_binary_tree_node_base1<Alloc>&>(*parent).*ch;
             }
         public:
             parent_aware_binary_tree_edge_proxy() = default;
             parent_aware_binary_tree_edge_proxy(const parent_aware_binary_tree_edge_proxy&) = default;
-            parent_aware_binary_tree_edge_proxy(pointer ptr, bool left)noexcept:parent{ptr}, left{left}
+            parent_aware_binary_tree_edge_proxy(pointer ptr, bool left_flag)noexcept:parent{ptr}, ch{left_flag ? l : r}
             { }
             parent_aware_binary_tree_edge_proxy& operator=(const parent_aware_binary_tree_edge_proxy&) = default;
             bool valid()const noexcept
@@ -83,19 +84,19 @@ namespace Yc
             parent_aware_binary_tree_edge_proxy& go_left()noexcept
             {
                 parent = child();
-                left = true;
+                ch = l;
                 return *this;
             }
             parent_aware_binary_tree_edge_proxy& go_right()noexcept
             {
                 parent = child();
-                left = false;
+                ch = r;
                 return *this;
             }
             parent_aware_binary_tree_edge_proxy& go_up()noexcept
             {
                 pointer parent_of_parent = static_cast<parent_aware_binary_tree_node_base<Alloc>&>(*parent).parent;
-                left = static_cast<parent_aware_binary_tree_node_base1<Alloc>&>(*parent_of_parent).left == parent;
+                ch = static_cast<parent_aware_binary_tree_node_base1<Alloc>&>(*parent_of_parent).left == parent ? l : r;
                 parent = parent_of_parent;
                 return *this;
             }
@@ -130,7 +131,7 @@ namespace Yc
             }
             friend struct std::hash<parent_aware_binary_tree_edge_proxy>;
             friend class parent_aware_binary_tree_edge_const_proxy<T, Alloc>;
-            template<class T1, class Alloc>
+            template<class T1, class Alloc1>
             friend class Yc::parent_aware_binary_tree;
             friend class parent_aware_binary_tree_node_proxy<T, Alloc>;
             using value_type = T;
@@ -157,23 +158,25 @@ namespace Yc
             using pointer_to_pointer = std::allocator_traits<Alloc>::template rebind_traits<typename std::allocator_traits<Alloc>::pointer>::pointer;
             using pointer = std::allocator_traits<Alloc>::pointer;
 
-            bool left{};
+            static constexpr inline pointer parent_aware_binary_tree_node_base1<Alloc>::*
+                l = &parent_aware_binary_tree_node_base1<Alloc>::left;
+            static constexpr inline pointer parent_aware_binary_tree_node_base1<Alloc>::*
+                r = (pointer parent_aware_binary_tree_node_base1<Alloc>::*)
+                & parent_aware_binary_tree_node_base<Alloc>::right;
+            pointer parent_aware_binary_tree_node_base1<Alloc>::* ch = l;
             pointer parent{};
             pointer& child()const noexcept
             {
-                if (left) {
-                    return static_cast<parent_aware_binary_tree_node_base1<Alloc>&>(*parent).left;
-                }
-                return static_cast<parent_aware_binary_tree_node_base<Alloc>&>(*parent).right;
+                return static_cast<parent_aware_binary_tree_node_base1<Alloc>&>(*parent).*ch;
             }
         public:
             parent_aware_binary_tree_edge_const_proxy() = default;
             parent_aware_binary_tree_edge_const_proxy(const parent_aware_binary_tree_edge_const_proxy&) = default;
-            parent_aware_binary_tree_edge_const_proxy(pointer ptr, bool left)noexcept :parent{ ptr }, left{ left }
+            parent_aware_binary_tree_edge_const_proxy(pointer ptr, bool left_flag)noexcept :parent{ ptr }, ch{ left_flag ? l : r }
             {
             }
             parent_aware_binary_tree_edge_const_proxy(parent_aware_binary_tree_edge_proxy<T, Alloc> p)noexcept :
-                parent_aware_binary_tree_edge_const_proxy{p.parent, p.left}
+                parent_aware_binary_tree_edge_const_proxy{p.parent, p.ch == p.l}
             {}
             parent_aware_binary_tree_edge_const_proxy& operator=(const parent_aware_binary_tree_edge_const_proxy&) = default;
             bool valid()const noexcept
@@ -191,19 +194,19 @@ namespace Yc
             parent_aware_binary_tree_edge_const_proxy& go_left()noexcept
             {
                 parent = child();
-                left = true;
+                ch = l;
                 return *this;
             }
             parent_aware_binary_tree_edge_const_proxy& go_right()noexcept
             {
                 parent = child();
-                left = false;
+                ch = r;
                 return *this;
             }
             parent_aware_binary_tree_edge_const_proxy& go_up()noexcept
             {
                 pointer parent_of_parent = static_cast<parent_aware_binary_tree_node_base<Alloc>&>(*parent).parent;
-                left = static_cast<parent_aware_binary_tree_node_base1<Alloc>&>(*parent_of_parent).left == parent;
+                ch = static_cast<parent_aware_binary_tree_node_base1<Alloc>&>(*parent_of_parent).left == parent ? l : r;
                 parent = parent_of_parent;
                 return *this;
             }
@@ -237,7 +240,7 @@ namespace Yc
                 return std::addressof(l.child()) == std::addressof(r.child());
             }
             friend struct std::hash<parent_aware_binary_tree_edge_const_proxy>;
-            template<class T1, class Alloc>
+            template<class T1, class Alloc1>
             friend class Yc::parent_aware_binary_tree;
             friend class parent_aware_binary_tree_node_const_proxy<T, Alloc>;
             using value_type = T;
@@ -341,7 +344,7 @@ namespace Yc
             friend struct std::hash<parent_aware_binary_tree_node_proxy>;
             friend class parent_aware_binary_tree_node_const_proxy<T, Alloc>;
             using value_type = T;
-            template<class T1, class Alloc>
+            template<class T1, class Alloc1>
             friend class Yc::parent_aware_binary_tree;
         };
     }
@@ -440,7 +443,7 @@ namespace Yc
             }
             friend struct std::hash<parent_aware_binary_tree_node_const_proxy>;
             using value_type = T;
-            template<class T1, class Alloc>
+            template<class T1, class Alloc1>
             friend class Yc::parent_aware_binary_tree;
         };
     }
@@ -622,7 +625,6 @@ namespace Yc
             parent_aware_binary_tree b
             )
         {
-            b.emplace(p, std::invoke(vg, h));
             (bool)h;
         }
         parent_aware_binary_tree recur_and_write(

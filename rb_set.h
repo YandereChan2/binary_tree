@@ -88,6 +88,33 @@ namespace Yc
             return r;
         }
 
+        template<class U>
+        node_const_proxy find_node_impl(U&& u)const noexcept
+        {
+            node_const_proxy n{}; // 候选的节点
+            node_const_proxy r = tree.cnroot();
+            while (!r.null())
+            {
+                if (comp(r->value(), u))
+                {
+                    // r比查找值小，去右子树
+                    r.go_right();
+                }
+                else
+                {
+                    // r >= 查找值，记录候选
+                    n = r;
+                    r.go_left();
+                }
+            }
+            // 显然n >= 查找值，如果同时查找值 >= n，那么按照相等处理
+            if (!n.null() && !comp(u, n->value()))
+            {
+                return n;
+            }
+            return r;
+        }
+
         size_t color(edge_const_proxy p)const noexcept
         {
             if (!p.null()) [[likely]]
@@ -154,16 +181,24 @@ namespace Yc
         template<class... Args>
         void emplace_impl(edge_const_proxy p, Args&&... args)
         {
-            tree.emplace(p, std::forward<Args>(args)...);
+            auto tmp = tree.emplace(p, std::forward<Args>(args)...);
             ++sz;
             insert_post(p);
+            if (!tmp.empty())
+            {
+                std::unreachable();
+            }
         }
 
         void insert_node_impl(edge_const_proxy p, tree_type& node)noexcept
         {
-            tree.splice(p, node);
+            auto tmp = tree.splice(p, node);
             ++sz;
             insert_post(p);
+            if (!tmp.empty())
+            {
+                std::unreachable();
+            }
         }
 
         void erase_impl(edge_const_proxy n)noexcept
@@ -418,7 +453,7 @@ namespace Yc
 
         const_iterator find(const value_type& key)const
         {
-            edge_const_proxy p = find_impl(key);
+            node_const_proxy p = find_node_impl(key);
             if (!p.null())
             {
                 return { node_const_proxy{p} };

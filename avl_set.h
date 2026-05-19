@@ -338,7 +338,7 @@ namespace Yc
         std::pair<iterator, bool> insert(const value_type& value)
         {
             edge_const_proxy p = find_impl(value);
-            if (p)
+            if (!p.null())
             {
                 return std::pair<iterator, bool>{ iterator{node_const_proxy{ p }}, false };
             }
