@@ -2,7 +2,7 @@
 
 ```C++
 template<class T, class Alloc>
-void swap(binary_tree<T, Alloc>& l, binary_tree<T, Alloc>& r)noexcept;
+void swap(parent_aware_binary_tree<T, Alloc>& l, parent_aware_binary_tree<T, Alloc>& r)noexcept;
 ```
 
 执行 [`l.swap(r)`](swap.md) 。
@@ -13,7 +13,7 @@ void swap(binary_tree<T, Alloc>& l, binary_tree<T, Alloc>& r)noexcept;
 
 ||||
 |-:|-|:-|
-|`l` , `r`|-|要交换内容的 `binary_tree` |
+|`l` , `r`|-|要交换内容的 `parent_aware_binary_tree` |
 
 ## 返回值
 
