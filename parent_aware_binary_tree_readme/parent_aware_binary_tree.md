@@ -5,7 +5,7 @@
 ```C++
 template<
     class T,
-    class Allocator = std::allocator<T>
+    class Alloc = std::allocator<T>
 >class parent_aware_binary_tree;
 ```
 
@@ -46,6 +46,7 @@ template<
 |:-|:-|
 |[（构造函数）](constructor.md)|构造 `parent_aware_binary_tree` <br>（公开成员函数）|
 |[（析构函数）](destructor.md)|析构 `parent_aware_binary_tree` <br>（公开成员函数）|
+|[`operator=`](operator_assign.md)|对内容赋值<br>（公开成员函数）|
 |[`get_allocator`](get_allocator.md)|返回关联的分配器<br>（公开成员函数）|
 
 ### 代理
@@ -68,6 +69,7 @@ template<
 |[`swap`](swap.md)|交换内容<br>（公开成员函数）|
 |[`cut`](cut.md)|取出某个 _树位置_ 上的 _二叉树_ <br>（公开成员函数）|
 |[`swap_sub_tree`](swap_sub_tree.md)（静态）|交换两个 _树位置_ 上的 _二叉树_ <br>（公开成员函数）|
+|[`swap_node`](swap_node.md)（静态）|交换两个 _二叉树_ 节点及其子树<br>（公开成员函数）|
 |[`splice`](splice.md)|从其他 _树位置_ 转移 _二叉树_ <br>（公开成员函数）|
 |[`recur_and_write`](recur_and_write.md)|消耗一个输入以在某个 _树位置_ 构造 _二叉树_ ，将递归的在其保有的 _树位置_ 继续构造 _二叉树_ <br>（公开成员函数）|
 
@@ -82,7 +84,7 @@ template<
 
 |||
 |:-|:-|
-|[`empty`](empty.md)|返回 `binary_tree` 内部的 _树位置_ 上是否没有 _二叉树_ <br>（公开成员函数）|
+|[`empty`](empty.md)|返回 `parent_aware_binary_tree` 内部的 _树位置_ 上是否没有 _二叉树_ <br>（公开成员函数）|
 
 ### 非成员函数
 
