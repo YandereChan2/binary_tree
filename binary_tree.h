@@ -1,3 +1,13 @@
+// 二叉树库（无父节点指针版本）
+// 与 parent_aware_binary_tree 相比，本实现不维护父节点指针，
+// 因此更轻量，但无法进行 go_up 导航和某些需要父指针的操作。
+//
+// 核心抽象：
+//   - edge_proxy / edge_const_proxy：封装一个指向子节点指针的"指针槽位"（pointer_to_pointer），
+//     支持导航（go_left/go_right）和修改（emplace/erase 等）
+//   - node_proxy / node_const_proxy：直接代表树节点
+//
+// 支持：分配器感知、复制/移动语义、递归构造、旋转、切割/拼接等操作
 #pragma once
 #include <memory>
 #include <type_traits>
@@ -11,11 +21,20 @@ namespace Yc
     class binary_tree;
     namespace details
     {
-        // Ϊ�˹�ܷ������漰������������
-        // �������ڵ�̳п���binary_tree_empty_placeholder
-        // �洢binary_tree_empty_placeholder��������Ӧ��pointer
+        // ===================================================================
+        // 节点层次结构：
+        //   binary_tree_empty_placeholder       （空类型，用于类型擦除）
+        //   └─ binary_tree_node_base<Alloc>     （left、right 指针）
+        //       └─ binary_tree_node<T, Alloc>   （存储用户数据 data_t<T>）
+        //
+        // 与 parent_aware_binary_tree 不同，本层次结构更简单：
+        // 无 parent 指针，无 node_base1 分层。
+        // ===================================================================
+
+        // 最底层基类：空类型占位符，用于统一 allocator rebound 的目标类型
         struct binary_tree_empty_placeholder
         { };
+        // 节点基类：持有 left、right 子节点指针
         template<class Alloc>
         struct binary_tree_node_base : binary_tree_empty_placeholder
         {
@@ -24,6 +43,7 @@ namespace Yc
             pointer left;
             pointer right;
         };
+        // 完整节点：继承全部指针并附加用户数据
         template<class T, class Alloc>
         struct binary_tree_node : binary_tree_node_base<Alloc>
         {
@@ -35,13 +55,27 @@ namespace Yc
         class binary_tree_node_proxy;
         template<class T, class Alloc>
         class binary_tree_node_const_proxy;
+        // ===================================================================
+        // edge_proxy：代表父节点到子节点之间的"边"（指针槽位）
+        //
+        // 与 parent_aware_binary_tree 版本不同，这里的边直接通过
+        // pointer_to_pointer（指向 left/right 指针的指针）实现，
+        // 而非使用成员指针。这使得实现更简单，但代价是每次导航
+        // 需要通过 pointer_traits 重新计算地址。
+        //
+        // 命名约定：
+        //   go_* ：原地修改自身，返回 *this（链式调用）
+        //   get_*：返回新的 proxy 对象，不修改自身
+        // ===================================================================
         template<class T, class Alloc>
         class binary_tree_edge_proxy
         {
             using pointer_to_pointer = std::allocator_traits<Alloc>::template rebind_traits<typename std::allocator_traits<Alloc>::pointer>::pointer;
             using pointer = std::allocator_traits<Alloc>::pointer;
             
-            pointer_to_pointer ptr{}; // **ptr��������binary_tree_empty_placeholder&
+            // ptr：指向节点中 left（或 right）成员的指针，
+            //      即 **ptr 得到 binary_tree_empty_placeholder&
+            pointer_to_pointer ptr{};
         public:
             binary_tree_edge_proxy() = default;
             binary_tree_edge_proxy(const binary_tree_edge_proxy&) = default;
@@ -49,28 +83,34 @@ namespace Yc
             {
             }
             binary_tree_edge_proxy& operator=(const binary_tree_edge_proxy&) = default;
+            // 边是否有效（ptr 非空）
             bool valid()const noexcept
             {
                 return (bool)ptr;
             }
+            // 边所指的子节点是否为空
             bool null()const noexcept
             {
                 return !(bool)*ptr;
             }
+            // 边有效且子节点非空
             explicit operator bool()const noexcept
             {
                 return valid() && (!null());
             }
+            // 移动到左子节点（通过 pointer_traits 计算左子指针的地址）
             binary_tree_edge_proxy& go_left()noexcept
             {
                 ptr = std::pointer_traits<pointer_to_pointer>::pointer_to(static_cast<binary_tree_node<T, Alloc>&>(**ptr).left);
                 return *this;
             }
+            // 移动到右子节点
             binary_tree_edge_proxy& go_right()noexcept
             {
                 ptr = std::pointer_traits<pointer_to_pointer>::pointer_to(static_cast<binary_tree_node<T, Alloc>&>(**ptr).right);
                 return *this;
             }
+            // 解引用：获取子节点中存储的值的引用
             T& operator*()const noexcept
             {
                 return static_cast<binary_tree_node<T, Alloc>&>(**ptr).data.data;
@@ -79,18 +119,22 @@ namespace Yc
             {
                 return std::addressof(static_cast<binary_tree_node<T, Alloc>&>(**ptr).data.data);
             }
+            // 获取左子边（不修改自身）
             binary_tree_edge_proxy get_left()const noexcept
             {
                 return { std::pointer_traits<pointer_to_pointer>::pointer_to(static_cast<binary_tree_node<T, Alloc>&>(**ptr).left) };
             }
+            // 获取右子边（不修改自身）
             binary_tree_edge_proxy get_right()const noexcept
             {
                 return { std::pointer_traits<pointer_to_pointer>::pointer_to(static_cast<binary_tree_node<T, Alloc>&>(**ptr).right) };
             }
+            // 获取左右子边
             std::pair<binary_tree_edge_proxy, binary_tree_edge_proxy> get_children()const noexcept
             {
                 return {get_left(), get_right()};
             }
+            // 比较两条边是否指向同一个指针槽位
             friend bool operator==(binary_tree_edge_proxy l, binary_tree_edge_proxy r)noexcept
             {
                 return l.ptr == r.ptr;
@@ -104,6 +148,7 @@ namespace Yc
         };
     }
 }
+// std::hash 特化：基于 ptr 地址进行哈希
 template<class T, class Alloc>
 struct std::hash<Yc::details::binary_tree_edge_proxy<T, Alloc>>
 {
@@ -116,13 +161,17 @@ namespace Yc
 {
     namespace details
     {
+        // edge_const_proxy：edge_proxy 的常量版本
+        // 与 edge_proxy 结构相同，但解引用返回 const T&，
+        // 且可从 edge_proxy 隐式转换而来
         template<class T, class Alloc>
         class binary_tree_edge_const_proxy
         {
             using pointer_to_pointer = std::allocator_traits<Alloc>::template rebind_traits<typename std::allocator_traits<Alloc>::pointer>::pointer;
             using pointer = std::allocator_traits<Alloc>::pointer;
 
-            pointer_to_pointer ptr{}; // **ptr��������binary_tree_empty_placeholder&
+            // ptr：指向节点中 left（或 right）成员的指针
+            pointer_to_pointer ptr{};
         public:
             binary_tree_edge_const_proxy() = default;
             binary_tree_edge_const_proxy(const binary_tree_edge_const_proxy&) = default;
@@ -187,6 +236,7 @@ namespace Yc
         };
     }
 }
+// std::hash 特化：基于 ptr 地址进行哈希
 template<class T, class Alloc>
 struct std::hash<Yc::details::binary_tree_edge_const_proxy<T, Alloc>>
 {
@@ -199,12 +249,19 @@ namespace Yc
 {
     namespace details
     {
+        // ===================================================================
+        // node_proxy：直接代表树节点
+        // 与 edge_proxy 不同，node_proxy 直接持有节点指针，
+        // 支持 go_left/go_right 导航和值访问。
+        // 注意：无父指针，故无 go_up。
+        // ===================================================================
         template<class T, class Alloc>
         class binary_tree_node_proxy
         {
             using pointer = std::allocator_traits<Alloc>::pointer;
             using pointer_to_pointer = std::allocator_traits<Alloc>::template rebind_traits<typename std::allocator_traits<Alloc>::pointer>::pointer;
-            pointer ptr{}; // *ptr��������binary_tree_empty_placeholder&
+            // ptr：指向节点对象本身（*ptr 得到 binary_tree_empty_placeholder&）
+            pointer ptr{};
         public:
             binary_tree_node_proxy() = default;
             binary_tree_node_proxy(pointer ptr)noexcept :ptr{ ptr }
@@ -267,6 +324,7 @@ namespace Yc
         };
     }
 }
+// std::hash 特化：基于 ptr 地址进行哈希
 template<class T, class Alloc>
 struct std::hash<Yc::details::binary_tree_node_proxy<T, Alloc>>
 {
@@ -279,12 +337,14 @@ namespace Yc
 {
     namespace details
     {
+        // node_const_proxy：node_proxy 的常量版本
         template<class T, class Alloc>
         class binary_tree_node_const_proxy
         {
             using pointer = std::allocator_traits<Alloc>::pointer;
             using pointer_to_pointer = std::allocator_traits<Alloc>::template rebind_traits<typename std::allocator_traits<Alloc>::pointer>::pointer;
-            pointer ptr{}; // *ptr��������binary_tree_empty_placeholder&
+            // ptr：指向节点对象本身
+            pointer ptr{};
         public:
             binary_tree_node_const_proxy() = default;
             binary_tree_node_const_proxy(pointer ptr)noexcept :ptr{ ptr }
@@ -349,6 +409,7 @@ namespace Yc
         };
     }
 }
+// std::hash 特化：基于 ptr 地址进行哈希
 template<class T, class Alloc>
 struct std::hash<Yc::details::binary_tree_node_const_proxy<T, Alloc>>
 {
@@ -361,6 +422,7 @@ namespace Yc
 {
     namespace details
     {
+        // 多态 get_children 函数对象
         struct binary_tree_get_children_t
         {
             template<class T, class Alloc>
@@ -389,6 +451,22 @@ namespace Yc
     {
         constexpr inline Yc::details::binary_tree_get_children_t get_children{};
     }
+    // ===================================================================
+    // binary_tree：无父节点指针的二叉树容器
+    //
+    // 与 parent_aware_binary_tree 的区别：
+    //   1. 无 parent 指针，节点更小，但不能 go_up 导航
+    //   2. 无哨兵节点，直接使用 root_ptr 裸指针
+    //   3. edge_proxy 使用 pointer_to_pointer 而非成员指针
+    //   4. 移动构造/赋值更简单（直接交换指针）
+    //
+    // 主要操作：
+    //   - 导航：root(), nroot()
+    //   - 修改：emplace, insert, erase, cut, splice
+    //   - 旋转：left_rotate, right_rotate, checked_left_rotate, checked_right_rotate
+    //   - 交换：swap, swap_sub_tree, swap_node
+    //   - 递归构造：recur_and_write
+    // ===================================================================
     template<class T, class Alloc = std::allocator<T>>
     class binary_tree
     {
@@ -397,17 +475,22 @@ namespace Yc
         using placeholder_alloc = std::allocator_traits<Alloc>::template rebind_alloc<details::binary_tree_empty_placeholder>;
         using node_type = details::binary_tree_node<T, placeholder_alloc>;
         using node_allocator = std::allocator_traits<Alloc>::template rebind_alloc<node_type>;
+        // 分配器（使用 [[no_unique_address]] 以零开销存储无状态分配器）
         [[no_unique_address]] Alloc alloc{};
 
+        // 根节点指针（无哨兵节点，直接指向树根）
         node_pointer root_ptr{};
+        // 获取占位符对象的 fancy pointer
         node_pointer pointer_to(const details::binary_tree_empty_placeholder& r)const noexcept
         {
             return std::pointer_traits<node_pointer>::pointer_to(r);
         }
+        // 获取节点指针的指针（即 pointer_to_pointer）
         pointer_to_node_pointer pointer_to(node_pointer& r)const noexcept
         {
             return std::pointer_traits<pointer_to_node_pointer>::pointer_to(r);
         }
+        // 分配并构造一个节点
         node_pointer allocate_node()
         {
             node_allocator a{ alloc };
@@ -416,6 +499,7 @@ namespace Yc
             std::allocator_traits<node_allocator>::construct(a, (node_type*)std::to_address(p));
             return p;
         }
+        // 析构并释放节点
         void deallocate_node(node_pointer p)noexcept
         {
             node_allocator a{ alloc };
@@ -428,6 +512,7 @@ namespace Yc
         {
             return alloc;
         }
+        using allocator_type = Alloc;
         using value_type = T;
         using reference = T&;
         using edge_proxy = details::binary_tree_edge_proxy<T, placeholder_alloc>;
@@ -435,6 +520,7 @@ namespace Yc
         using node_proxy = details::binary_tree_node_proxy<T, placeholder_alloc>;
         using node_const_proxy = details::binary_tree_node_const_proxy<T, placeholder_alloc>;
     private:
+        // 递归写入实现（手写迭代模拟递归以避免栈溢出，使用 goto 实现尾递归）
         template<
             class ValueGetter,
             class ChildrenGetter,
@@ -544,20 +630,13 @@ namespace Yc
     //        goto tmp;
     //    }
     public:
+        // 递归写入：从外部树形结构复制到当前树
+        // 约束：h 必须可 bool 转换，且值类型可通过 emplace 构造
         template<
             class ValueGetter,
             class ChildrenGetter,
             class InitializeHandle
-        >requires requires (
-            edge_const_proxy p,
-            ValueGetter vg,
-            ChildrenGetter cg,
-            InitializeHandle h,
-            binary_tree b
-            ) {
-            b.emplace(p, std::invoke(vg, h));
-            (bool)h;
-        }
+        >
         binary_tree recur_and_write(
             edge_const_proxy p,
             ValueGetter vg,
@@ -566,6 +645,7 @@ namespace Yc
         )
         {
             binary_tree ret{ cut(p) };
+            // guard：若构造过程中异常，自动将已构造部分拼回原树
             struct _guard
             {
                 binary_tree* t;
@@ -590,6 +670,7 @@ namespace Yc
         explicit binary_tree(const Alloc& a)noexcept :alloc{a}
         {
         }
+        // 从树形结构构造整棵树
         template<
             class ValueGetter,
             class ChildrenGetter,
@@ -607,7 +688,8 @@ namespace Yc
                 recur_and_write_impl(root(), vg, cg, h);
             }
         }
-        binary_tree(const binary_tree& b) :binary_tree{ b.alloc }
+        // 拷贝构造：递归复制整棵树的结构和值
+        binary_tree(const binary_tree& b) :binary_tree{ std::allocator_traits<Alloc>::select_on_container_copy_construction(b.alloc) }
         {
             auto copier = [](edge_const_proxy p) -> const T&
                 {
@@ -616,10 +698,12 @@ namespace Yc
             recur_and_write
                 (root(), copier, binary_tree_functional::get_children, b.croot());
         }
+        // 拷贝赋值
         binary_tree& operator=(const binary_tree& b)
         {
             Alloc tmp{ alloc };
             binary_tree t1{ cut(root())};
+            // guard：若复制过程异常，恢复原分配器和旧树
             struct _guard
             {
                 binary_tree* t{};
@@ -630,7 +714,7 @@ namespace Yc
                     if (t)
                     {
                         t->alloc = *tmp;
-                        splice(*this, root(), *other);
+                        splice(root(), *other);
                     }
                 }
             }guard{this, &tmp, &t1};
@@ -647,10 +731,12 @@ namespace Yc
             guard.t = nullptr;
             return *this;
         }
+        // 移动构造：直接交换根指针和分配器
         binary_tree(binary_tree&& b)noexcept :
             root_ptr{ std::exchange(b.root_ptr, {}) }, alloc{ std::move(b.alloc) }
         {
         }
+        // 移动赋值
         binary_tree& operator=(binary_tree&& b)noexcept(
             std::allocator_traits<Alloc>::propagate_on_container_move_assignment::value ||
             std::allocator_traits<Alloc>::is_always_equal::value)
@@ -683,6 +769,7 @@ namespace Yc
         {
             return root_ptr == nullptr;
         }
+        // 获取树根的 edge_proxy（注意：无哨兵节点，空树 root_ptr 为 null）
         edge_proxy root()noexcept
         {
             return { pointer_to(root_ptr) };
@@ -695,6 +782,7 @@ namespace Yc
         {
             return { pointer_to((node_pointer&)root_ptr) };
         }
+        // 获取树根对应的 node_proxy
         node_proxy nroot()noexcept
         {
             return root();
@@ -707,20 +795,21 @@ namespace Yc
         {
             return root();
         }
+        // 切割：将 p 指向的子树从原树分离，返回一棵包含该子树的新树
         binary_tree cut(edge_const_proxy p)noexcept
         {
             pointer_to_node_pointer ptr = p.ptr;
             binary_tree ret{ alloc };
-            ret.root_ptr = std::exchange(*ptr, {});
+            ret.root_ptr = std::exchange(*ptr, {});  // 断开原树连接
             return ret;
         }
+        // 删除指定边上的节点及其所有子节点（迭代式，避免递归栈溢出）
         void erase(edge_const_proxy p)noexcept
         {
             if (!p.null())
             {
                 node_pointer& place = *p.ptr;
                 
-                // ���׵ķ�ֹ�ݹ������㷨
                 while (true) {
                     auto [l, r] = p.get_children();
                     bool l_null = l.null();
@@ -752,14 +841,17 @@ namespace Yc
                 }
             }
         }
+        // 清空整棵树
         void clear()noexcept
         {
             erase(root());
         }
+        // 在指定边位置原地构造新节点（已有子树作为切割结果返回）
         template<class... Args>
         binary_tree emplace(edge_const_proxy p, Args&&... args)
         {
             node_pointer new_node = allocate_node();
+            // 若 T 的构造不抛异常，直接构造；否则使用 RAII guard 确保异常安全
             if constexpr (std::is_nothrow_constructible_v<T, Args...>)
             {
                 std::allocator_traits<Alloc>::
@@ -795,12 +887,14 @@ namespace Yc
         {
             return emplace(p, std::move(v));
         }
+        // 拼接：将 from 子树移动到 to 位置，原 to 子树作为结果返回
         binary_tree splice(edge_const_proxy to ,edge_const_proxy from)noexcept
         {
             binary_tree ret{ cut(to) };
             *(to.ptr) = std::exchange(*(from.ptr), {});
             return ret;
         }
+        // 拼接整棵树的根
         binary_tree splice(edge_const_proxy p, binary_tree& tree)noexcept
         {
             return splice(p, tree.root());
@@ -810,11 +904,13 @@ namespace Yc
             return splice(p, tree.root());
         }
 
+        // 交换两个子树
         static void swap_sub_tree(edge_const_proxy l, edge_const_proxy r)noexcept
         {
             std::swap(*(l.ptr), *(r.ptr));
         }
 
+        // 交换两棵树
         void swap(binary_tree& other)noexcept
         {
             if constexpr (std::allocator_traits<Alloc>::propagate_on_container_swap::value)
@@ -824,18 +920,20 @@ namespace Yc
             }
             swap_sub_tree(root(), other.root());
         }
+        // 析构：清空所有节点
         ~binary_tree()
         {
             clear();
         }
+        // 左旋：将 p 的右子节点提升为 p 的位置
+        //     |                         |
+        //    <A>                       <C>
+        //   /   \                      / \
+        //  <B>  <C>     =====>       <A> <E>
+        //       / \                  / \
+        //     <D> <E>              <B> <D>
         void left_rotate(edge_const_proxy p)noexcept
         {
-            //     |                         |
-            //    <A>                       <C>
-            //   /   \                      / \
-            //  <B>  <C>     =====>       <A> <E>
-            //       / \                  / \
-            //     <D> <E>              <B> <D>
             binary_tree t1 = cut(p.get_right()); // <D>-<rC>-<E>
             binary_tree t2 = splice(p, t1); //<B>-<rA>
             //     |
@@ -847,6 +945,7 @@ namespace Yc
             p.go_right();
             splice(p, t3);
         }
+        // 右旋：左旋的镜像操作
         void right_rotate(edge_const_proxy p)noexcept
         {
             binary_tree t1 = cut(p.get_left());
@@ -856,6 +955,7 @@ namespace Yc
             p.go_left();
             splice(p, t3);
         }
+        // 带检查的左旋：若右子节点存在则执行左旋，否则无操作
         bool checked_left_rotate(edge_const_proxy p)noexcept
         {
             edge_const_proxy q = p;
@@ -866,6 +966,7 @@ namespace Yc
             left_rotate(q);
             return true;
         }
+        // 带检查的右旋：若左子节点存在则执行右旋，否则无操作
         bool checked_right_rotate(edge_const_proxy p)noexcept
         {
             edge_const_proxy q = p;
@@ -876,6 +977,7 @@ namespace Yc
             right_rotate(q);
             return true;
         }
+        // 交换两个节点（同时交换其子树）
         static void swap_node(edge_const_proxy l, edge_const_proxy r)
         {
             swap_sub_tree(l, r);
@@ -885,8 +987,9 @@ namespace Yc
             swap_sub_tree(lr, rr);
         }
     };
-    template<class T>
-    void swap(binary_tree<T>& l, binary_tree<T>& r)noexcept
+    // 特化 swap 自由函数
+    template<class T, class Alloc>
+    void swap(binary_tree<T, Alloc>& l, binary_tree<T, Alloc>& r)noexcept
     {
         l.swap(r);
     }
