@@ -14,22 +14,18 @@ namespace Yc
             set_iterator(typename tree_type::node_const_proxy p)noexcept :p{ p }
             {}
             set_iterator& operator=(const set_iterator&) = default;
-            friend bool operator==(set_iterator, set_iterator) = default;
             set_iterator& operator++()noexcept
             {
-                auto [l, r] = p.get_children();
+                auto r = p.get_right();
                 if (r)
                 {
-                    p.go_right();
+                    p = r;
                     while (true)
                     {
-                        auto q = p;
-                        q.go_left();
-                        if (!q)
-                        {
+                        auto left = p.get_left();
+                        if (!left)
                             return *this;
-                        }
-                        p = q;
+                        p = left;
                     }
                 }
                 else
@@ -37,13 +33,9 @@ namespace Yc
                     while (true)
                     {
                         auto q = p;
-                        p.go_up();
-                        auto r = p;
-                        r.go_left();
-                        if (q == r)
-                        {
+                        p = p.get_parent();
+                        if (q == p.get_left())
                             return *this;
-                        }
                     }
                 }
             }
@@ -57,19 +49,16 @@ namespace Yc
 
             set_iterator& operator--()noexcept
             {
-                auto [l, r] = p.get_children();
+                auto l = p.get_left();
                 if (l)
                 {
-                    p.go_left();
+                    p = l;
                     while (true)
                     {
-                        auto q = p;
-                        q.go_right();
-                        if (!q)
-                        {
+                        auto right = p.get_right();
+                        if (!right)
                             return *this;
-                        }
-                        p = q;
+                        p = right;
                     }
                 }
                 else
@@ -77,13 +66,9 @@ namespace Yc
                     while (true)
                     {
                         auto q = p;
-                        p.go_up();
-                        auto r = p;
-                        r.go_right();
-                        if (q == r)
-                        {
+                        p = p.get_parent();
+                        if (q == p.get_right())
                             return *this;
-                        }
                     }
                 }
             }
@@ -104,6 +89,7 @@ namespace Yc
             {
                 return std::addressof(p->value());
             }
+            friend bool operator==(set_iterator, set_iterator)noexcept = default;
         };
     }
 }

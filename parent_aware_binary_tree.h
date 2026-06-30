@@ -547,6 +547,13 @@ namespace Yc
     {
         constexpr inline Yc::details::parent_aware_binary_tree_get_children_t get_children{};
     }
+    enum child_check
+    {
+        no_check = 0,
+        check_left = 1,
+        check_right = 2,
+        check_all = 3, // check_all == check_left | check_right
+    };
     // ===================================================================
     // parent_aware_binary_tree：带父节点指针的二叉树容器
     //
@@ -941,14 +948,74 @@ namespace Yc
             }
         }
 
-        // 交换两个节点（同时交换其子树）
-        static void swap_node(edge_const_proxy l, edge_const_proxy r)
+    private:
+        static void swap_node_uncheck(edge_const_proxy l, edge_const_proxy r)noexcept
         {
             swap_sub_tree(l, r);
             auto [ll, lr] = l.get_children();
             auto [rl, rr] = r.get_children();
             swap_sub_tree(ll, rl);
             swap_sub_tree(lr, rr);
+        }
+    public:
+        // 交换两个节点（同时交换其子树）
+        static void swap_node(edge_const_proxy l, edge_const_proxy r, child_check chk = check_all)noexcept
+        {
+            if (chk & check_left)
+            {
+                if (l.get_left() == r)
+                {
+                    node_const_proxy nl = l;
+                    node_const_proxy nr = r;
+                    auto tmp = static_cast<node_type&>(*nl.node).right;
+                    auto tmp1 = static_cast<node_type&>(*nl.node).parent;
+                    auto tmpl = static_cast<node_type&>(*nr.node).left;
+                    auto tmpr = static_cast<node_type&>(*nr.node).right;
+                    static_cast<node_type&>(*nl.node).left = tmpl;
+                    static_cast<node_type&>(*nl.node).right = tmpr;
+                    static_cast<node_type&>(*nl.node).parent = nr.node;
+
+                    static_cast<node_type&>(*nr.node).left = nl.node;
+                    static_cast<node_type&>(*nr.node).right = tmp;
+                    static_cast<node_type&>(*nr.node).parent = tmp1;
+                    if (tmpl)
+                        static_cast<node_type&>(*tmpl).parent = nl.node;
+                    if (tmpr)
+                        static_cast<node_type&>(*tmpr).parent = nl.node;
+                    if (tmp)
+                        static_cast<node_type&>(*tmp).parent = nr.node;
+                    l.child() = nr.node;
+                    return;
+                }
+            }
+            if (chk & check_right)
+            {
+                if (l.get_right() == r)
+                {
+                    node_const_proxy nl = l;
+                    node_const_proxy nr = r;
+                    auto tmp = static_cast<node_type&>(*nl.node).left;
+                    auto tmp1 = static_cast<node_type&>(*nl.node).parent;
+                    auto tmpl = static_cast<node_type&>(*nr.node).left;
+                    auto tmpr = static_cast<node_type&>(*nr.node).right;
+                    static_cast<node_type&>(*nl.node).left = tmpl;
+                    static_cast<node_type&>(*nl.node).right = tmpr;
+                    static_cast<node_type&>(*nl.node).parent = nr.node;
+
+                    static_cast<node_type&>(*nr.node).left = tmp;
+                    static_cast<node_type&>(*nr.node).right = nl.node;
+                    static_cast<node_type&>(*nr.node).parent = tmp1;
+                    if (tmpl)
+                        static_cast<node_type&>(*tmpl).parent = nl.node;
+                    if (tmpr)
+                        static_cast<node_type&>(*tmpr).parent = nl.node;
+                    if (tmp)
+                        static_cast<node_type&>(*tmp).parent = nr.node;
+                    l.child() = nr.node;
+                    return;
+                }
+            }
+            swap_node_uncheck(l, r);
         }
 
         // 交换两棵树

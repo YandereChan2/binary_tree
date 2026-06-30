@@ -49,7 +49,7 @@ namespace Yc
         }
 
         rb_set(rb_set&& other) :sz{ other.sz }, tree{
-            std::move(other.tree()) }, comp{ std::move(other.comp) }
+            std::move(other.tree) }, comp{ std::move(other.comp) }
         {
             other.clear();
         }
@@ -117,7 +117,7 @@ namespace Yc
 
         size_t color(edge_const_proxy p)const noexcept
         {
-            if (!p.null()) [[likely]]
+            if (p.valid() && !p.null()) [[likely]]
             {
                 return p->cookie();
             }
@@ -126,56 +126,45 @@ namespace Yc
 
         void insert_post(edge_const_proxy n)noexcept
         {
-            if (n == tree.root()) [[unlikely]]
-            {
-                n->cookie() = black;
-                return;
-            }
-
             n->cookie() = red;
-            edge_const_proxy p = n.get_parent();
-            if (p->cookie() == black)
+            while (n != tree.root())
             {
-                return;
-            }
+                edge_const_proxy p = n.get_parent();
+                if (p->cookie() == black)
+                    return;
 
-            edge_const_proxy g = p.get_parent();
-            auto [p1, p2] = g.get_children();
-            bool p_l = p == p1;
-            edge_const_proxy& u = p_l ? p2 : p1;
+                edge_const_proxy g = p.get_parent();
+                auto [p1, p2] = g.get_children();
+                bool p_l = p == p1;
+                edge_const_proxy u = p_l ? p2 : p1;
 
-            if (color(u) == red)
-            {
+                if (color(u) == red)
+                {
+                    g->cookie() = red;
+                    p->cookie() = black;
+                    u->cookie() = black;
+                    n = g;
+                    continue;
+                }
+
+                bool n_l = n == p.get_left();
+                if (n_l != p_l)
+                {
+                    if (n_l)
+                        tree.right_rotate(p);
+                    else
+                        tree.left_rotate(p);
+                    n.go_up();
+                }
                 g->cookie() = red;
-                p->cookie() = black;
-                u->cookie() = black;
+                if (p_l)
+                    tree.right_rotate(g);
+                else
+                    tree.left_rotate(g);
+                g->cookie() = black;
                 return;
             }
-
-            bool n_l = n == p.get_left();
-            if (n_l != p_l)
-            {
-                if (n_l)
-                {
-                    tree.right_rotate(p);
-
-                }
-                else
-                {
-                    tree.left_rotate(p);
-                }
-                n.go_up();
-            }
-            g->cookie() = red;
-            if (p_l)
-            {
-                tree.right_rotate(g);
-            }
-            else
-            {
-                tree.left_rotate(g);
-            }
-            g->cookie() = black;
+            n->cookie() = black;
         }
 
         template<class... Args>
@@ -213,11 +202,12 @@ namespace Yc
                 edge_const_proxy q{ tmp.p };
                 size_t old_cookie_n = n->cookie();
                 size_t old_cookie_q = q->cookie();
-                tree.swap_node(n, q);
+                node_const_proxy saved_n = (node_const_proxy)n;
+                tree.swap_node(n, q, Yc::check_right);
                 n->cookie() = old_cookie_n;
-                q->cookie() = old_cookie_q;
-                n = q;
-                auto [l1, r1] = n->get_children();
+                saved_n->cookie() = old_cookie_q;
+                n = (edge_const_proxy)saved_n;
+                auto [l1, r1] = n.get_children();
                 lf = !l1.null();
                 rf = !r1.null();
             }
@@ -233,6 +223,8 @@ namespace Yc
                 }
                 while (true)
                 {
+                    if (n == tree.root())
+                        return;
                     edge_const_proxy p = n.get_parent();
                     auto [n1, n2] = p.get_children();
                     bool n_l = n == n1;
@@ -244,37 +236,35 @@ namespace Yc
                         if (n_l)
                         {
                             tree.left_rotate(p);
-                            p.go_left();
-                            auto [n1, n2] = p.get_children();
-                            n = n1;
-                            s = n2;
-
+                            auto y = p.get_left();
+                            n = y.get_left();
+                            s = y.get_right();
                         }
                         else
                         {
                             tree.right_rotate(p);
-                            auto [n1, n2] = p.get_children();
-                            n = n2;
-                            s = n1;
+                            auto y = p.get_right();
+                            n = y.get_right();
+                            s = y.get_left();
                         }
                     }
                     auto [c, d] = s.get_children();
-                    if (color(c) == black && color(d) == black)
+                    if (!s.null() && color(c) == black && color(d) == black)
                     {
                         s->cookie() = red;
-                        if (p->cookie() == red || p == tree.root())
+                        if (n.get_parent()->cookie() == red || n.get_parent() == tree.root())
                         {
-                            p->cookie() = black;
+                            n.get_parent()->cookie() = black;
                             return;
                         }
                         else
                         {
-                            n = p;
+                            n = n.get_parent();
                             continue;
                         }
                     }
 
-                    if ((n_l && color(d) == black) || (!n_l && color(c) == black))
+                    if (!s.null() && ((n_l && color(d) == black) || (!n_l && color(c) == black)))
                     {
                         s->cookie() = black;
                         if (n_l)
@@ -285,27 +275,42 @@ namespace Yc
                         {
                             tree.left_rotate(s);
                         }
+                        auto [new_n1, new_n2] = n.get_parent().get_children();
+                        s = (n == new_n1) ? new_n2 : new_n1;
                         s->cookie() = red;
                     }
 
-                    size_t old_color = p->cookie();
+                    if (s.null())
+                    {
+                        n = n.get_parent();
+                        continue;
+                    }
+
+                    auto y = n.get_parent();
+                    size_t old_color = y->cookie();
                     if (n_l)
                     {
-                        tree.left_rotate(p);
+                        tree.left_rotate(y);
                     }
                     else
                     {
-                        tree.right_rotate(p);
+                        tree.right_rotate(y);
                     }
-                    auto [c1, d1] = p.get_children();
-                    c1->cookie() = black;
-                    d1->cookie() = black;
-                    p->cookie() = old_color;
+                    auto [c1, d1] = y.get_children();
+                    if (c1) c1->cookie() = black;
+                    if (d1) d1->cookie() = black;
+                    y->cookie() = old_color;
                     return;
                 }
             }
 
-            edge_const_proxy q = lf ? n.get_left() : n.get_right();
+            edge_const_proxy child = lf ? n.get_left() : n.get_right();
+            auto tmp = tree.cut(n);
+            auto q = tmp.root();
+            if (lf)
+                q.go_left();
+            else
+                q.go_right();
             tree.splice(n, q);
             --sz;
             n->cookie() = black;
@@ -333,15 +338,11 @@ namespace Yc
                 return end();
             }
             auto node = tree.cnroot();
-            // 找到最左节点
             while (true)
             {
-                auto left = node;
-                left.go_left();
+                auto left = node.get_left();
                 if (!left)
-                {
                     break;
-                }
                 node = left;
             }
             return node;
@@ -359,15 +360,11 @@ namespace Yc
                 return end();
             }
             auto node = tree.cnroot();
-            // 找到最左节点
             while (true)
             {
-                auto left = node;
-                left.go_left();
+                auto left = node.get_left();
                 if (!left)
-                {
                     break;
-                }
                 node = left;
             }
             return node;
@@ -416,7 +413,7 @@ namespace Yc
         {
             tree_type tmp{ tree.get_allocator() };
             tmp.emplace(tmp.root(), std::forward<Args>(args)...);
-            edge_const_proxy p = find_impl(*tmp.root());
+            edge_const_proxy p = find_impl(tmp.root()->value());
             if (p)
             {
                 return std::pair<iterator, bool>{ iterator{ node_const_proxy{ p } }, false };
