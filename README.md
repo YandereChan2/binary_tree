@@ -21,6 +21,24 @@
 
 `rb_set.h`,`avl_set.h`,`sbt_set.h`,`fhq_treap_set.h`为最终头文件，也是include的目标，它们依赖三叉链法二叉树基座库`parent_aware_binary_tree.h`,公共迭代器实现`set_common.h`以及分配器元信息注入机制`cookie_allocator.h`。这些头文件都是自包含的。
 
+# 性能
+
+可以自行运行benchmark_perf.cpp试一试，用以测试使用parent_aware_binary_tree搭建的红黑树的性能。
+
+开发者本机跑出来的结果如下，其中比率是耗时比率，数字越大说明自实现相对std::set比性能越好。
+
+```
+N=500,000 × 50 轮，双编译器对比：
+
+测试	            MSVC 比率	    MinGW 比率	    MSVC rb	    MinGW rb
+insert_random	    0.93x	        0.92x	        382.6ms	    262.5ms
+insert_sorted	    0.74x	        1.12x	        70.8ms	    39.8ms
+find	            0.98x	        0.98x	        368.3ms	    377.1ms
+erase	            1.22x	        1.01x	        174.9ms	    182.7ms
+iteration	        0.69x	        0.98x	        70.9ms	    71.0ms
+mixed	            0.94x	        0.90x	        155.8ms	    149.0ms
+```
+
 # 快速开始
 
 ```C++
