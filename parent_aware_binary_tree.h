@@ -552,7 +552,9 @@ namespace Yc
         no_check = 0,
         check_left = 1,
         check_right = 2,
-        check_all = 3, // check_all == check_left | check_right
+        check_left_rev = 4,
+        check_right_rev = 8,
+        check_all = 15, // check_all == check_left | check_right
     };
     // ===================================================================
     // parent_aware_binary_tree：带父节点指针的二叉树容器
@@ -661,7 +663,7 @@ namespace Yc
             return parent_of_cnroot().go_left();
         }
     private:
-        // 递归写入实现（手写迭代模拟递归以避免栈溢出，使用 goto 实现尾递归）
+        // 递归写入实现（使用 goto 实现尾递归）
         template<
             class ValueGetter,
             class ChildrenGetter,
@@ -989,6 +991,61 @@ namespace Yc
                 }
             }
             if (chk & check_right)
+            {
+                if (l.get_right() == r)
+                {
+                    node_const_proxy nl = l;
+                    node_const_proxy nr = r;
+                    auto tmp = static_cast<node_type&>(*nl.node).left;
+                    auto tmp1 = static_cast<node_type&>(*nl.node).parent;
+                    auto tmpl = static_cast<node_type&>(*nr.node).left;
+                    auto tmpr = static_cast<node_type&>(*nr.node).right;
+                    static_cast<node_type&>(*nl.node).left = tmpl;
+                    static_cast<node_type&>(*nl.node).right = tmpr;
+                    static_cast<node_type&>(*nl.node).parent = nr.node;
+
+                    static_cast<node_type&>(*nr.node).left = tmp;
+                    static_cast<node_type&>(*nr.node).right = nl.node;
+                    static_cast<node_type&>(*nr.node).parent = tmp1;
+                    if (tmpl)
+                        static_cast<node_type&>(*tmpl).parent = nl.node;
+                    if (tmpr)
+                        static_cast<node_type&>(*tmpr).parent = nl.node;
+                    if (tmp)
+                        static_cast<node_type&>(*tmp).parent = nr.node;
+                    l.child() = nr.node;
+                    return;
+                }
+            }
+            std::swap(l, r);
+            if (chk & check_left_rev)
+            {
+                if (l.get_left() == r)
+                {
+                    node_const_proxy nl = l;
+                    node_const_proxy nr = r;
+                    auto tmp = static_cast<node_type&>(*nl.node).right;
+                    auto tmp1 = static_cast<node_type&>(*nl.node).parent;
+                    auto tmpl = static_cast<node_type&>(*nr.node).left;
+                    auto tmpr = static_cast<node_type&>(*nr.node).right;
+                    static_cast<node_type&>(*nl.node).left = tmpl;
+                    static_cast<node_type&>(*nl.node).right = tmpr;
+                    static_cast<node_type&>(*nl.node).parent = nr.node;
+
+                    static_cast<node_type&>(*nr.node).left = nl.node;
+                    static_cast<node_type&>(*nr.node).right = tmp;
+                    static_cast<node_type&>(*nr.node).parent = tmp1;
+                    if (tmpl)
+                        static_cast<node_type&>(*tmpl).parent = nl.node;
+                    if (tmpr)
+                        static_cast<node_type&>(*tmpr).parent = nl.node;
+                    if (tmp)
+                        static_cast<node_type&>(*tmp).parent = nr.node;
+                    l.child() = nr.node;
+                    return;
+                }
+            }
+            if (chk & check_right_rev)
             {
                 if (l.get_right() == r)
                 {
