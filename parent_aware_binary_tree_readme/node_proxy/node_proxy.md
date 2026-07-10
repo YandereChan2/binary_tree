@@ -6,7 +6,14 @@
 
 `node_proxy` 可以[隐式转换](https://zh.cppreference.com/w/cpp/language/implicit_conversion)到 `node_const_proxy` ,反过来不行。
 
-和 `Yc::binary_tree` 不同，`edge_proxy` 和 `edge_const_proxy` 与 `node_proxy` 和 `node_const_proxy` 可以互相[隐式转换](https://zh.cppreference.com/w/cpp/language/implicit_conversion)。
+和 `Yc::binary_tree` 不同，`edge_proxy` 和 `edge_const_proxy` 与 `node_proxy` 和 `node_const_proxy` 可以互相[隐式转换](https://zh.cppreference.com/w/cpp/language/implicit_conversion)：
+
+- `edge_proxy` 可以通过构造函数 `node_proxy(edge_proxy)noexcept` 转换为 `node_proxy`。
+- `node_proxy` 可以通过转换运算符 `operator edge_proxy()const noexcept` 转换为 `edge_proxy`。
+- `edge_const_proxy` 可以通过构造函数 `node_const_proxy(edge_const_proxy)noexcept` 转换为 `node_const_proxy`。
+- `node_const_proxy` 可以通过转换运算符 `operator edge_const_proxy()const noexcept` 转换为 `edge_const_proxy`。
+- `node_proxy` 可以隐式转换为 `node_const_proxy`。
+- `edge_proxy` 可以隐式转换为 `edge_const_proxy`。
 
 ## 成员类型
 
@@ -118,3 +125,15 @@ bool operator==(proxy l, proxy r)noexcept;
 ```
 
 当且仅当其都不指代 _二叉树_ ，或指代同一个 _二叉树_ 时返回 `true` 。
+
+## `std::hash` 启用
+
+```C++
+template<class T, class Alloc>
+struct std::hash<Yc::details::parent_aware_binary_tree_node_proxy<T, Alloc>>
+{
+    size_t operator()(const Yc::details::parent_aware_binary_tree_node_proxy<T, Alloc>& para)const noexcept;
+};
+```
+
+为 `std::hash` 启用特化，基于代理对象所指代的 _二叉树_ 的地址进行哈希。这使得在无序关联容器（如 `std::unordered_map`）中可以使用代理对象作为键。`node_const_proxy` 同样启用了对应的 `std::hash` 特化。

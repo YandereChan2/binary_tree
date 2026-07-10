@@ -214,9 +214,10 @@ namespace Yc
                 ++tmp;
                 edge_const_proxy q{ tmp.p };
                 size_t old_cookie_n = n->cookie();
+                node_const_proxy saved_n = (node_const_proxy)n;
                 tree.swap_node(n, q);
                 n->cookie() = old_cookie_n;
-                n = q;
+                n = (edge_const_proxy)saved_n;
                 auto [l1, r1] = n->get_children();
                 lf = (bool)l1;
                 rf = (bool)r1;

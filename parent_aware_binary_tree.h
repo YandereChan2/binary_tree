@@ -113,12 +113,12 @@ namespace Yc
             // 边是否有效（parent 非空）
             bool valid()const noexcept
             {
-                return bool{ parent };
+                return (parent != nullptr);
             }
             // 边所指的子节点是否为空
             bool null()const noexcept
             {
-                return !bool{ child() };
+                return (child() == nullptr);
             }
             // 边有效且子节点非空
             explicit operator bool()const noexcept
@@ -405,13 +405,13 @@ namespace Yc
     }
 }
 
-// std::hash 特化：基于子节点地址进行哈希
+// std::hash 特化：基于所指代节点的地址进行哈希
 template<class T, class Alloc>
 struct std::hash<Yc::details::parent_aware_binary_tree_node_proxy<T, Alloc>>
 {
     size_t operator()(const Yc::details::parent_aware_binary_tree_node_proxy<T, Alloc>& para)const noexcept
     {
-        return std::hash<std::remove_cvref_t<decltype(std::addressof(para.child()))>>{}(std::addressof(para.node));
+        return std::hash<decltype(para.node)>{}(para.node);
     }
 };
 
@@ -504,13 +504,13 @@ namespace Yc
     }
 }
 
-// std::hash 特化：基于子节点地址进行哈希
+// std::hash 特化：基于所指代节点的地址进行哈希
 template<class T, class Alloc>
 struct std::hash<Yc::details::parent_aware_binary_tree_node_const_proxy<T, Alloc>>
 {
     size_t operator()(const Yc::details::parent_aware_binary_tree_node_const_proxy<T, Alloc>& para)const noexcept
     {
-        return std::hash<std::remove_cvref_t<decltype(std::addressof(para.child()))>>{}(std::addressof(para.node));
+        return std::hash<decltype(para.node)>{}(para.node);
     }
 };
 
@@ -554,7 +554,7 @@ namespace Yc
         check_right = 2,
         check_left_rev = 4,
         check_right_rev = 8,
-        check_all = 15, // check_all == check_left | check_right
+        check_all = 15, // check_all == check_left | check_right | check_left_rev | check_right_rev
     };
     // ===================================================================
     // parent_aware_binary_tree：带父节点指针的二叉树容器

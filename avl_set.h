@@ -2,7 +2,6 @@
 #include "cookie_allocator.h"
 #include "parent_aware_binary_tree.h"
 #include "set_common.h"
-#include <memory_resource>
 #include <memory>
 #include <algorithm>
 #include <utility>
@@ -47,10 +46,11 @@ namespace Yc
         {
             avl_set tmp{ other };
             swap(tmp);
+            return *this;
         }
 
         avl_set(avl_set&& other) :sz{ other.sz }, tree{
-            std::move(other.tree())}, comp{std::move(other.comp)}
+            std::move(other.tree) }, comp{ std::move(other.comp) }
         {
             other.clear();
         }
@@ -59,6 +59,7 @@ namespace Yc
         {
             avl_set tmp{ std::move(other) };
             swap(tmp);
+            return *this;
         }
     private:
         template<class U>
@@ -201,16 +202,24 @@ namespace Yc
         template<class... Args>
         void emplace_impl(edge_const_proxy p, Args&&... args)
         {
-            tree.emplace(p, std::forward<Args>(args)...);
+            auto tmp = tree.emplace(p, std::forward<Args>(args)...);
             ++sz;
             insert_post(p);
+            if (!tmp.empty())
+            {
+                std::unreachable();
+            }
         }
 
         void insert_node_impl(edge_const_proxy p, tree_type& node)noexcept
         {
-            tree.splice(p, node);
+            auto tmp = tree.splice(p, node);
             ++sz;
             insert_post(p);
+            if (!tmp.empty())
+            {
+                std::unreachable();
+            }
         }
 
         // p位置必须有节点，调用者保证
@@ -224,11 +233,14 @@ namespace Yc
                 details::set_iterator<T, Alloc> tmp{ (node_const_proxy)p };
                 ++tmp;
                 edge_const_proxy q{tmp.p};
-                size_t old_cookie = p->cookie();
-                tree.swap_node(p, q);
-                p->cookie() = old_cookie;
-                p = q;
-                auto [l1, r1] = p->get_children();
+                size_t old_cookie_p = p->cookie();
+                size_t old_cookie_q = q->cookie();
+                node_const_proxy saved_p = (node_const_proxy)p;
+                tree.swap_node(p, q, Yc::check_right);
+                p->cookie() = old_cookie_p;
+                saved_p->cookie() = old_cookie_q;
+                p = (edge_const_proxy)saved_p;
+                auto [l1, r1] = p.get_children();
                 lf = (bool)l1;
                 rf = (bool)r1;
             }
@@ -362,7 +374,7 @@ namespace Yc
         {
             tree_type tmp{ tree.get_allocator() };
             tmp.emplace(tmp.root(), std::forward<Args>(args)...);
-            edge_const_proxy p = find_impl(*tmp.root());
+            edge_const_proxy p = find_impl(tmp.root()->value());
             if (p)
             {
                 return std::pair<iterator, bool>{ iterator{ node_const_proxy{ p } }, false };

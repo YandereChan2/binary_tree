@@ -35,6 +35,7 @@ template<
 |-:|:-|
 |`value_type`|`T`|
 |`allocator_type`|`Alloc`|
+|`reference`|`T&`|
 |[`edge_proxy`](edge_proxy/edge_proxy.md)|表示 _树位置_ 的轻量级代理对象。|
 |[`edge_const_proxy`](edge_proxy/edge_proxy.md)|表示 _树位置_ 的轻量级代理对象。对这个位置的树的元素提供只读访问|
 |[`node_proxy`](node_proxy/node_proxy.md)|表示 _二叉树_ 的轻量级代理对象。|
@@ -85,6 +86,13 @@ template<
 |||
 |:-|:-|
 |[`empty`](empty.md)|返回 `parent_aware_binary_tree` 内部的 _树位置_ 上是否没有 _二叉树_ <br>（公开成员函数）|
+
+### 通用工具
+
+|||
+|:-|:-|
+|[`child_check`](child_check.md)|用于 [`swap_node`](swap_node.md) 的邻接关系检查位掩码。|
+|[`parent_aware_binary_tree_functional::get_children`](functional_get_children.md)|定制点对象，可统一对四种代理类型调用。|
 
 ### 非成员函数
 

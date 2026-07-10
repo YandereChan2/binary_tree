@@ -6,6 +6,8 @@
 
 `edge_proxy` 可以[隐式转换](https://zh.cppreference.com/w/cpp/language/implicit_conversion)到 `edge_const_proxy` ,反过来不行。
 
+`edge_proxy` 还可以通过构造函数 `node_proxy(edge_proxy)noexcept` 转换为 [`node_proxy`](../node_proxy/node_proxy.md)，后者可以通过转换运算符 `operator edge_proxy()const noexcept` 转换回 `edge_proxy`。
+
 这种代理对象会在相应的 _树位置_ 失效时失效，这种失效规则更加复杂。长期保有这种代理并且期间树的结构有变动时可能会导致令人困惑的结果。但是各种树操作依赖这种代理对象。如果希望得到更稳定的元素代理，请转换成 [`node_proxy`](../node_proxy/node_proxy.md) 或 [`node_const_proxy`](../node_proxy/node_proxy.md) 。
 
 ## 成员类型
@@ -120,3 +122,15 @@ bool operator==(proxy l, proxy r)noexcept;
 ```
 
 当且仅当其都无效，或指代同一个 _树位置_ 时返回 `true` 。
+
+## `std::hash` 启用
+
+```C++
+template<class T, class Alloc>
+struct std::hash<Yc::details::parent_aware_binary_tree_edge_proxy<T, Alloc>>
+{
+    size_t operator()(const Yc::details::parent_aware_binary_tree_edge_proxy<T, Alloc>& para)const noexcept;
+};
+```
+
+为 `std::hash` 启用特化，基于代理对象所指代的 _树位置_ 的地址进行哈希。这使得在无序关联容器（如 `std::unordered_map`）中可以使用代理对象作为键。`edge_const_proxy` 同样启用了对应的 `std::hash` 特化。
