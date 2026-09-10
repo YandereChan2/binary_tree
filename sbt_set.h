@@ -218,7 +218,7 @@ namespace Yc
                 tree.swap_node(n, q);
                 n->cookie() = old_cookie_n;
                 n = (edge_const_proxy)saved_n;
-                auto [l1, r1] = n->get_children();
+                auto [l1, r1] = n.get_children();
                 lf = (bool)l1;
                 rf = (bool)r1;
             }
