@@ -141,7 +141,7 @@ namespace Yc
             }
             friend struct std::hash<binary_tree_edge_proxy>;
             friend class binary_tree_edge_const_proxy<T, Alloc>;
-            template<class T1, class Alloc>
+            template<class T1, class Alloc1>
             friend class Yc::binary_tree;
             friend class binary_tree_node_proxy<T, Alloc>;
             using value_type = T;
@@ -229,7 +229,7 @@ namespace Yc
                 return l.ptr == r.ptr;
             }
             friend struct std::hash<binary_tree_edge_const_proxy>;
-            template<class T1, class Alloc>
+            template<class T1, class Alloc1>
             friend class Yc::binary_tree;
             friend class binary_tree_node_const_proxy<T, Alloc>;
             using value_type = const T;
@@ -536,7 +536,7 @@ namespace Yc
             derecur:
             if (!p.null())
             {
-                *((int*)nullptr);
+                std::unreachable();
             }
             emplace(p, std::invoke(vg, h));
             auto [lh, rh] = std::invoke(cg, h);

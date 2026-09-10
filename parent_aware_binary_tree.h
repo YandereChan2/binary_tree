@@ -195,6 +195,8 @@ struct std::hash<Yc::details::parent_aware_binary_tree_edge_proxy<T, Alloc>>
 {
     size_t operator()(const Yc::details::parent_aware_binary_tree_edge_proxy<T, Alloc>& para)const noexcept
     {
+        if (!para.valid())
+            return 0;
         return std::hash<std::remove_cvref_t<decltype(std::addressof(para.child()))>>{}(std::addressof(para.child()));
     }
 };
@@ -305,6 +307,8 @@ struct std::hash<Yc::details::parent_aware_binary_tree_edge_const_proxy<T, Alloc
 {
     size_t operator()(const Yc::details::parent_aware_binary_tree_edge_const_proxy<T, Alloc>& para)const noexcept
     {
+        if (!para.valid())
+            return 0;
         return std::hash<std::remove_cvref_t<decltype(std::addressof(para.child()))>>{}(std::addressof(para.child()));
     }
 };
