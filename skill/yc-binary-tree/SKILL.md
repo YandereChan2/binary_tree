@@ -154,11 +154,12 @@ PA::swap_node(a, a.get_left());       // 默认 check_all，正确识别相邻�
 以下是正确使用的前提条件，写代码时需要遵守：
 
 1. **`recur_and_write` 的目标边必须为空。** 它的语义是"往空槽位里写一棵树"。要覆盖已有子树，先 `cut` 或 `erase` 把旧内容取走，再写入。
-2. **空边只可比较与哈希，不可解引用。** 默认构造的代理是合法状态，`valid()`/`null()`/`operator==`/`std::hash` 都可用；但 `operator*`、`operator->` 会经由空指针取槽位，只能对 `(bool)e == true` 的边使用。
+2. **先确认 `valid()` 再访问。** 默认构造的边是合法状态，可以比较、可以哈希；但它的 `valid()` 为 `false`，此时 `null()`、`operator*`、`operator->`、`go_*`、`get_*`、`get_children()` 都要经由空指针取槽位，一律是未定义行为。只有 `(bool)e == true` 的边才能访问元素或继续导航。
 3. **区分 `go_*` 与 `get_*`。** `go_left()` 会改掉代理自身，`get_left()` 不会。想保留原位置就用 `get_*`。
 4. **务必处理返回值。** `emplace`/`insert`/`cut`/`splice` 返回的是被替换下来的旧子树；不接住它就等于当场销毁。要实现"插入后校验、失败则回滚"，就把返回值存起来再 `splice` 回去。
 5. **`parent_aware` 的 `swap_node` 保持默认 `check_all`。** 只有确认两个节点不相邻时才传 `no_check`。
 6. **`edge_const_proxy` 与 `edge_proxy` 共享槽位。** 从 `edge_proxy` 转换出来的 const 代理仍指向同一槽位，通过它的导航结果与原代理一致。
+7. **边代理会随结构变动失效。** 边代理指代的是一个"树位置"；旋转、`swap`、`splice` 等改变结构的操作会让节点换位置，长期持有的旧边代理可能已经指到别处。需要跨操作稳定地指向某个节点时，改用 `node_proxy` / `node_const_proxy`。
 
 ## 扩展这两个文件时
 
