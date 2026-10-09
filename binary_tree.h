@@ -144,17 +144,22 @@ namespace Yc
             template<class T1, class Alloc1>
             friend class Yc::binary_tree;
             friend class binary_tree_node_proxy<T, Alloc>;
+            // 与迭代器约定一致：const 性由 reference 表达，value_type 不带 const
             using value_type = T;
+            using reference = T&;
         };
     }
 }
-// std::hash 特化：基于 ptr 地址进行哈希
+// std::hash 特化：与 parent_aware_binary_tree 一致——哈希"槽位地址"，
+// 无效边（默认构造的代理）返回 0；不要求 std::hash<fancy pointer> 存在
 template<class T, class Alloc>
 struct std::hash<Yc::details::binary_tree_edge_proxy<T, Alloc>>
 {
     size_t operator()(const Yc::details::binary_tree_edge_proxy<T, Alloc>& para)const noexcept
     {
-        return std::hash<decltype(para.ptr)>{}(para.ptr);
+        if (!para.valid())
+            return 0;
+        return std::hash<std::remove_cvref_t<decltype(std::addressof(*para.ptr))>>{}(std::addressof(*para.ptr));
     }
 };
 namespace Yc
@@ -232,17 +237,22 @@ namespace Yc
             template<class T1, class Alloc1>
             friend class Yc::binary_tree;
             friend class binary_tree_node_const_proxy<T, Alloc>;
-            using value_type = const T;
+            // 与迭代器约定一致：const 性由 reference 表达，value_type 不带 const
+            using value_type = T;
+            using reference = const T&;
         };
     }
 }
-// std::hash 特化：基于 ptr 地址进行哈希
+// std::hash 特化：与 parent_aware_binary_tree 一致——哈希"槽位地址"，
+// 无效边（默认构造的代理）返回 0；不要求 std::hash<fancy pointer> 存在
 template<class T, class Alloc>
 struct std::hash<Yc::details::binary_tree_edge_const_proxy<T, Alloc>>
 {
     size_t operator()(const Yc::details::binary_tree_edge_const_proxy<T, Alloc>& para)const noexcept
     {
-        return std::hash<decltype(para.ptr)>{}(para.ptr);
+        if (!para.valid())
+            return 0;
+        return std::hash<std::remove_cvref_t<decltype(std::addressof(*para.ptr))>>{}(std::addressof(*para.ptr));
     }
 };
 namespace Yc
@@ -306,7 +316,7 @@ namespace Yc
             {
                 return { static_cast<binary_tree_node<T, Alloc>&>(*ptr).right };
             }
-            std::pair<binary_tree_edge_proxy<T, Alloc>, binary_tree_edge_proxy<T, Alloc>> get_children()const
+            std::pair<binary_tree_edge_proxy<T, Alloc>, binary_tree_edge_proxy<T, Alloc>> get_children()const noexcept
             {
                 return
                 {
@@ -320,7 +330,9 @@ namespace Yc
             }
             friend struct std::hash<binary_tree_node_proxy>;
             friend class binary_tree_node_const_proxy<T, Alloc>;
+            // 与迭代器约定一致：const 性由 reference 表达，value_type 不带 const
             using value_type = T;
+            using reference = T&;
         };
     }
 }
@@ -392,7 +404,7 @@ namespace Yc
             {
                 return { static_cast<binary_tree_node<T, Alloc>&>(*ptr).right };
             }
-            std::pair<binary_tree_edge_const_proxy<T, Alloc>, binary_tree_edge_const_proxy<T, Alloc>> get_children()const
+            std::pair<binary_tree_edge_const_proxy<T, Alloc>, binary_tree_edge_const_proxy<T, Alloc>> get_children()const noexcept
             {
                 return
                 {
@@ -405,7 +417,9 @@ namespace Yc
                 return l.ptr == r.ptr;
             }
             friend struct std::hash<binary_tree_node_const_proxy>;
-            using value_type = const T;
+            // 与迭代器约定一致：const 性由 reference 表达，value_type 不带 const
+            using value_type = T;
+            using reference = const T&;
         };
     }
 }
@@ -451,20 +465,35 @@ namespace Yc
     {
         constexpr inline Yc::details::binary_tree_get_children_t get_children{};
     }
+    // 相邻情形检查掩码：与 parent_aware_binary_tree.h 共用同一份定义。
+    // 两个头文件可能被同一个翻译单元同时包含，故用宏守卫避免重定义。
+#ifndef YC_CHILD_CHECK_DEFINED
+#define YC_CHILD_CHECK_DEFINED
+    enum child_check
+    {
+        no_check = 0,
+        check_left = 1,
+        check_right = 2,
+        check_left_rev = 4,
+        check_right_rev = 8,
+        check_all = 15, // check_all == check_left | check_right | check_left_rev | check_right_rev
+    };
+#endif
     // ===================================================================
     // binary_tree：无父节点指针的二叉树容器
     //
     // 与 parent_aware_binary_tree 的区别：
     //   1. 无 parent 指针，节点更小，但不能 go_up 导航
-    //   2. 无哨兵节点，直接使用 root_ptr 裸指针
+    //   2. 无哨兵节点，直接由 root_ptr（fancy pointer）持有树根
     //   3. edge_proxy 使用 pointer_to_pointer 而非成员指针
-    //   4. 移动构造/赋值更简单（直接交换指针）
+    //   4. 移动构造/赋值更简单（移动分配器 + 交换根指针）
     //
     // 主要操作：
     //   - 导航：root(), nroot()
     //   - 修改：emplace, insert, erase, cut, splice
     //   - 旋转：left_rotate, right_rotate, checked_left_rotate, checked_right_rotate
-    //   - 交换：swap, swap_sub_tree, swap_node
+    //   - 交换：swap, swap_sub_tree, swap_node（带 child_check）
+    //   - 遍历：for_each
     //   - 递归构造：recur_and_write
     // ===================================================================
     template<class T, class Alloc = std::allocator<T>>
@@ -481,9 +510,11 @@ namespace Yc
         // 根节点指针（无哨兵节点，直接指向树根）
         node_pointer root_ptr{};
         // 获取占位符对象的 fancy pointer
+        // 获取占位符对象的 fancy pointer（与 parent_aware_binary_tree 同写法：
+        // pointer_traits::pointer_to 要求非 const 引用，此处转掉 const）
         node_pointer pointer_to(const details::binary_tree_empty_placeholder& r)const noexcept
         {
-            return std::pointer_traits<node_pointer>::pointer_to(r);
+            return std::pointer_traits<node_pointer>::pointer_to((details::binary_tree_empty_placeholder&)r);
         }
         // 获取节点指针的指针（即 pointer_to_pointer）
         pointer_to_node_pointer pointer_to(node_pointer& r)const noexcept
@@ -701,6 +732,10 @@ namespace Yc
         // 拷贝赋值
         binary_tree& operator=(const binary_tree& b)
         {
+            if (this == &b)
+            {
+                return *this;
+            }
             Alloc tmp{ alloc };
             binary_tree t1{ cut(root())};
             // guard：若复制过程异常，恢复原分配器和旧树
@@ -714,7 +749,7 @@ namespace Yc
                     if (t)
                     {
                         t->alloc = *tmp;
-                        splice(root(), *other);
+                        t->splice(t->root(), *other);
                     }
                 }
             }guard{this, &tmp, &t1};
@@ -727,7 +762,7 @@ namespace Yc
             {
                 return *p;
             };
-            recur_and_write(root(), copier, &edge_const_proxy::get_children, b.root());
+            recur_and_write(root(), copier, binary_tree_functional::get_children, b.root());
             guard.t = nullptr;
             return *this;
         }
@@ -744,8 +779,8 @@ namespace Yc
             if constexpr
                 (std::allocator_traits<Alloc>::propagate_on_container_move_assignment::value)
             {
-                using namespace std;
-                swap(alloc, b.alloc);
+                // 必须写 std::swap：类内还有一个成员 swap，未限定的 swap 会先找到它
+                std::swap(alloc, b.alloc);
                 std::swap(root_ptr, b.root_ptr);
                 return *this;
             }
@@ -776,7 +811,9 @@ namespace Yc
         }
         edge_const_proxy root()const noexcept
         {
-            return { pointer_to(root_ptr) };
+            // 与 croot()/parent_aware_binary_tree 一致：const 成员函数里 root_ptr 是
+            // `node_pointer const`，需转掉 const 才能取到指向槽位的指针
+            return { pointer_to((node_pointer&)root_ptr) };
         }
         edge_const_proxy croot()const noexcept
         {
@@ -846,6 +883,52 @@ namespace Yc
         {
             erase(root());
         }
+
+        // 中序遍历，对每个节点的值调用 f。语义与 parent_aware_binary_tree::for_each 相同，
+        // 供容器在销毁节点前做收尾（例如哈希表先把所有桶摘链，再 clear() 销毁桶节点）。
+        // 非 const 树传入 T&，const 树传入 const T&。
+        // 约束：f 不应改变树的结构（增删/旋转），否则遍历位置会失效。
+        template<class F>
+        void for_each(F&& f)noexcept
+        {
+            for_each_impl<node_proxy>(nroot(), std::forward<F>(f));
+        }
+        template<class F>
+        void for_each(F&& f)const noexcept
+        {
+            for_each_impl<node_const_proxy>(cnroot(), std::forward<F>(f));
+        }
+
+    private:
+        // 无分配的中序遍历：
+        //   - 有左孩子 -> 中序要求先走完左子树再访问本节点，而"回到本节点"在没有父指针
+        //                 的实现里做不到，所以这里必须递归一次；
+        //   - 右子树   -> 本节点已访问，直接 goto 循环过去，不递归。
+        // 于是递归深度 = 沿途有左孩子的节点数 ≤ 树高，纯右单链完全不递归。
+        // （析构走的 erase() 仍是纯迭代，因此深左单链的构造与销毁都不会爆栈。）
+        template<class Proxy, class F>
+        static void for_each_impl(Proxy p, F&& f)noexcept
+        {
+        derecur:
+            if (p.null())
+            {
+                return;
+            }
+            auto [l, r] = p.get_children();
+            const bool has_l = !l.null();
+            const bool has_r = !r.null();
+            if (has_l)
+            {
+                for_each_impl<Proxy>(l, f);
+            }
+            std::invoke(f, *p);
+            if (has_r)
+            {
+                p = Proxy{ r };
+                goto derecur;
+            }
+        }
+    public:
         // 在指定边位置原地构造新节点（已有子树作为切割结果返回）
         template<class... Args>
         binary_tree emplace(edge_const_proxy p, Args&&... args)
@@ -915,8 +998,8 @@ namespace Yc
         {
             if constexpr (std::allocator_traits<Alloc>::propagate_on_container_swap::value)
             {
-                using namespace std;
-                swap(alloc, other.alloc);
+                // 必须写 std::swap：类内的成员 swap 会遮蔽 std::swap
+                std::swap(alloc, other.alloc);
             }
             swap_sub_tree(root(), other.root());
         }
@@ -978,8 +1061,68 @@ namespace Yc
             return true;
         }
         // 交换两个节点（同时交换其子树）
-        static void swap_node(edge_const_proxy l, edge_const_proxy r)
+        // 与 parent_aware_binary_tree 一致地带 child_check 相邻检查：两个被交换的节点
+        // 互为父子时，朴素地交换槽位会破坏结构（互指成环、丢节点），四种相邻形态各有
+        // 专门的重连分支。本实现没有父指针，因此只需重连 left/right 槽位，不需要维护 parent。
+        static void swap_node(edge_const_proxy l, edge_const_proxy r, child_check chk = check_all)noexcept
         {
+            if (chk & check_left)
+            {
+                if (l.get_left() == r)
+                {
+                    // r 是 l 的左孩子：把 r 提到 l 的位置，l 变成 r 的左孩子
+                    auto lr = l.get_right();
+                    auto rl = r.get_left();
+                    auto rr = r.get_right();
+                    swap_sub_tree(l, r);
+                    swap_sub_tree(r, rl);
+                    swap_sub_tree(lr, rr);
+                    return;
+                }
+            }
+            if (chk & check_right)
+            {
+                if (l.get_right() == r)
+                {
+                    // r 是 l 的右孩子：把 r 提到 l 的位置，l 变成 r 的右孩子
+                    auto ll = l.get_left();
+                    auto rl = r.get_left();
+                    auto rr = r.get_right();
+                    swap_sub_tree(l, r);
+                    swap_sub_tree(r, rr);
+                    swap_sub_tree(ll, rl);
+                    return;
+                }
+            }
+            // 反转形态：先交换两个代理，即可复用上面的两段重连逻辑
+            std::swap(l, r);
+            if (chk & check_left_rev)
+            {
+                if (l.get_left() == r)
+                {
+                    auto lr = l.get_right();
+                    auto rl = r.get_left();
+                    auto rr = r.get_right();
+                    swap_sub_tree(l, r);
+                    swap_sub_tree(r, rl);
+                    swap_sub_tree(lr, rr);
+                    return;
+                }
+            }
+            if (chk & check_right_rev)
+            {
+                if (l.get_right() == r)
+                {
+                    auto ll = l.get_left();
+                    auto rl = r.get_left();
+                    auto rr = r.get_right();
+                    swap_sub_tree(l, r);
+                    swap_sub_tree(r, rr);
+                    swap_sub_tree(ll, rl);
+                    return;
+                }
+            }
+            // 两个节点不相邻（或调用方显式传 no_check）：朴素交换槽位 + 各自子槽位
             swap_sub_tree(l, r);
             auto [ll, lr] = l.get_children();
             auto [rl, rr] = r.get_children();

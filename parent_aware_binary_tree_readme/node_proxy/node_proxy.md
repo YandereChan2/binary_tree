@@ -19,7 +19,8 @@
 
 |成员类型|定义|
 |-:|:-|
-|`value_type`|`T` 或 `const T`|
+|`value_type`|`T`|
+|`reference`|`T&` 或 `const T&`|
 
 ## 成员函数
 

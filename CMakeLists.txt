@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.14)  # FetchContent 需要 3.14+
 project(binary_tree)
 
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 23)  # 两个二叉树头文件用了 std::unreachable（C++23）
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 if(MSVC)

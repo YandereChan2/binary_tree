@@ -6,6 +6,8 @@ static void swap_node(edge_const_proxy l, edge_const_proxy r, child_check chk = 
 
 交换两个 _二叉树_ 节点，同时交换它们各自的子树。相当于先调用 [`swap_sub_tree(l, r)`](swap_sub_tree.md) 交换节点位置，再交换左右子节点位置。
 
+`l` 和 `r` 都必须是指代**存在的节点**的 _树位置_。传入空 _树位置_（`(bool)l == false`，例如对没有左孩子的节点取 `get_left()`）会解引用空节点，行为[未定义](https://zh.cppreference.com/w/cpp/language/ub)。
+
 参数 `chk` 指定了需要检查的特殊邻接情况。当且仅当 `l` 和 `r` 互为父子关系且满足对应检查位时，`swap_node` 会采取特殊的交换策略以确保正确性。检查位的语义如下：
 
 - `check_left`：检查 `l` 的左子节点是否为 `r`（即 `r` 是 `l` 的直接左子节点）。

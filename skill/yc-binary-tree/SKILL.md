@@ -120,34 +120,48 @@ bool ok = t.checked_right_rotate(t.root());    // 左子不存在时返回 false
 
 ### 交换节点
 
-`parent_aware` 的 `swap_node` 带 `child_check` 掩码（默认 `check_all`），用于识别父**子相邻**的四种形态并做专门重连——两个被交换的节点互为父子时，必须重连父子链而不是直接换指针：
+两个实现的 `swap_node` 都带 `child_check` 掩码（默认 `check_all`），用于识别父**子相邻**的四种形态并做专门重连——两个被交换的节点互为父子时，直接换指针会互指成环、丢节点：
 
 ```cpp
 using PA = Yc::parent_aware_binary_tree<int>;
 PA::swap_node(a, a.get_left());       // 默认 check_all，正确识别相邻情形
+
+using BT = Yc::binary_tree<int>;
+BT::swap_node(a, a.get_left());       // 同样的签名与语义
 ```
 
-`binary_tree::swap_node` 没有这层检查，它假定两个节点不相邻。
+区别只在实现细节：`parent_aware` 的重连还要维护 `parent` 链，`binary_tree` 只重连 `left`/`right` 槽位。
+
+### 中序遍历
+
+```cpp
+t.for_each([](int& v) noexcept { /* 处理每个节点 */ });   // const 树里回调收到 const int&
+```
+
+中序、`noexcept`、无分配；容器用它做销毁前的收尾（例如哈希表先把所有桶摘链，再 `clear()` 销毁桶节点）。回调不得改变树结构。
 
 ## 两实现差异速查
 
 | 维度 | `binary_tree` | `parent_aware_binary_tree` |
 |---|---|---|
+| 每个节点多一个指针 | 无 | `parent` |
+| 树根 | 自己持有 `root_ptr` | 哨兵 `root_node`，其 `left` 指向真实树根 |
 | `go_up` / `get_parent` | 无 | 有 |
 | `node_proxy` → `edge_proxy` | **无此转换**（只能 `get_children()`） | 有 `operator edge_proxy()` |
-| 额外 API | — | `parent_of_nroot()`、`parent_of_cnroot()`、`swap_node(..., child_check)` |
-| 边哈希实现 | `std::hash<decltype(para.ptr)>{}(para.ptr)` | `std::addressof(para.child())`，无效边返回 0 |
-| 移动构造 | `std::exchange(root_ptr, {})` + 移动分配器 | `alloc{other.alloc}` + `swap_sub_tree` |
+| 额外 API | — | `parent_of_nroot()`、`parent_of_cnroot()` |
+
+除此之外两边的公开 API 与语义**逐一对齐**：`root`/`croot`/`nroot`/`cnroot`、`cut`/`splice`/`emplace`/`insert`/`erase`/`clear`、`swap`/`swap_sub_tree`/`swap_node(…, child_check)`、`for_each`、四种旋转、`recur_and_write`、`functional::get_children`、8 个代理的接口与 `std::hash` 约定（含"无效边哈希为 0"）、分配器与移动语义。
 
 ## 迭代而非递归
 
-`erase()` 用 `while` 循环，`recur_and_write_impl()` 用 `goto` 手工实现尾递归——都是为了让深树不爆栈。扩展这两个文件时请保持这一风格。
+`erase()` 用 `while` 循环，`recur_and_write_impl()` 用 `goto` 手工实现尾递归——都是为了让深树不爆栈。`for_each()` 的右子树同样走 `goto` 循环，但**有左孩子时必须递归一次**：中序要"走完左子树再回到本节点"，没有父指针就回不去。所以 `for_each()` 的递归深度 ≤ 树高（纯右单链完全不递归，长左单链会随树深增长）；构造与销毁仍是纯迭代，不受影响。扩展这两个文件时请保持这一风格。
 
 ## 异常安全
 
 - `emplace`：`T` 非 nothrow 构造时用局部 RAII guard 释放已分配节点。
 - `recur_and_write` / 拷贝赋值：局部 `_guard` 在异常时把已构造部分 `splice` 回原树并恢复分配器。
-- 移动构造/赋值：POCMA 感知；分配器不相等时退化为逐个移动。
+- 拷贝赋值开头有自赋值检查（`a = a` 安全，不会清空自己）。
+- 移动构造移动分配器；移动赋值 POCMA 感知，分配器不相等时退化为逐个移动。
 
 ## 使用契约
 
@@ -155,16 +169,17 @@ PA::swap_node(a, a.get_left());       // 默认 check_all，正确识别相邻�
 
 1. **`recur_and_write` 的目标边必须为空。** 它的语义是"往空槽位里写一棵树"。要覆盖已有子树，先 `cut` 或 `erase` 把旧内容取走，再写入。
 2. **先确认 `valid()` 再访问。** 默认构造的边是合法状态，可以比较、可以哈希；但它的 `valid()` 为 `false`，此时 `null()`、`operator*`、`operator->`、`go_*`、`get_*`、`get_children()` 都要经由空指针取槽位，一律是未定义行为。只有 `(bool)e == true` 的边才能访问元素或继续导航。
-3. **区分 `go_*` 与 `get_*`。** `go_left()` 会改掉代理自身，`get_left()` 不会。想保留原位置就用 `get_*`。
-4. **务必处理返回值。** `emplace`/`insert`/`cut`/`splice` 返回的是被替换下来的旧子树；不接住它就等于当场销毁。要实现"插入后校验、失败则回滚"，就把返回值存起来再 `splice` 回去。
-5. **`parent_aware` 的 `swap_node` 保持默认 `check_all`。** 只有确认两个节点不相邻时才传 `no_check`。
-6. **`edge_const_proxy` 与 `edge_proxy` 共享槽位。** 从 `edge_proxy` 转换出来的 const 代理仍指向同一槽位，通过它的导航结果与原代理一致。
-7. **边代理会随结构变动失效。** 边代理指代的是一个"树位置"；旋转、`swap`、`splice` 等改变结构的操作会让节点换位置，长期持有的旧边代理可能已经指到别处。需要跨操作稳定地指向某个节点时，改用 `node_proxy` / `node_const_proxy`。
+3. **`swap_node` / `swap_sub_tree` 要求两个位置都指代真实节点。** `swap_node(l, r)` 里 `(bool)l` 与 `(bool)r` 必须为真——例如 `e` 没有左孩子时 `swap_node(e, e.get_left())` 会解引用空节点（未定义行为，实测会崩）。`swap_sub_tree` 可以交换空槽位，但两个边本身仍需 `valid()`。
+4. **区分 `go_*` 与 `get_*`。** `go_left()` 会改掉代理自身，`get_left()` 不会。想保留原位置就用 `get_*`。
+5. **务必处理返回值。** `emplace`/`insert`/`cut`/`splice` 返回的是被替换下来的旧子树；不接住它就等于当场销毁。要实现"插入后校验、失败则回滚"，就把返回值存起来再 `splice` 回去。
+6. **`swap_node` 保持默认 `check_all`**（两个实现都是）。只有确认两个节点不相邻时才传 `no_check`。
+7. **`edge_const_proxy` 与 `edge_proxy` 共享槽位。** 从 `edge_proxy` 转换出来的 const 代理仍指向同一槽位，通过它的导航结果与原代理一致。
+8. **边代理会随结构变动失效。** 边代理指代的是一个"树位置"；旋转、`swap`、`splice` 等改变结构的操作会让节点换位置，长期持有的旧边代理可能已经指到别处。需要跨操作稳定地指向某个节点时，改用 `node_proxy` / `node_const_proxy`。
 
 ## 扩展这两个文件时
 
 - 保持 `go_*` 改自身、`get_*` 返回新对象的命名约定。
-- 保持迭代 / 尾递归风格，不要引入随树深增长的递归。
+- 保持迭代 / 尾递归风格，不要引入随树深增长的递归（`for_each` 对左孩子必须递归一次，是唯一的例外，理由见上文）。
 - 新代理类型或新代理操作上线时，同步补上 `operator==` 与 `std::hash` 特化，并确保二者一致（相等者必同哈希）。
 
 完整的成员与签名清单见 `references/api.md`。
