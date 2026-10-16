@@ -6,7 +6,7 @@
 
 `node_proxy` 可以[隐式转换](https://zh.cppreference.com/w/cpp/language/implicit_conversion)到 `node_const_proxy` ,反过来不行。
 
-和 `Yc::binary_tree` 不同，`edge_proxy` 和 `edge_const_proxy` 与 `node_proxy` 和 `node_const_proxy` 可以互相[隐式转换](https://zh.cppreference.com/w/cpp/language/implicit_conversion)：
+和 `Yc::binary_tree` 不同，`edge_proxy` 和 `edge_const_proxy` 与 `node_proxy` 和 `node_const_proxy` 之间有如下[隐式转换](https://zh.cppreference.com/w/cpp/language/implicit_conversion)（并非两两互相都能转换）：
 
 - `edge_proxy` 可以通过构造函数 `node_proxy(edge_proxy)noexcept` 转换为 `node_proxy`。
 - `node_proxy` 可以通过转换运算符 `operator edge_proxy()const noexcept` 转换为 `edge_proxy`。
@@ -87,6 +87,8 @@ T* operator->()const noexcept;
 
 运算符重载，以提供访问其指代的 _二叉树_ 所保有的元素的能力。如果其不[按语境转换](https://zh.cppreference.com/w/cpp/language/implicit_conversion)成 `true` 或者指代 _虚拟二叉树_ ，那么行为[未定义](https://zh.cppreference.com/w/cpp/language/ub)。
 
+`get_parent()` 在树根上的返回值正是指代 _虚拟二叉树_ 的代理；它虽能与其他代理比较，但**不得对其解引用**——_虚拟二叉树_ 不保有元素，其数据成员中并没有生存期内的 `T` 对象。
+
 ### get_left, get_right
 
 ```C++
@@ -107,7 +109,7 @@ proxy get_right()const noexcept;
 proxy get_parent()const noexcept;
 ```
 
-返回指代提供其所指代的 _二叉树_ 所占据的 _树位置_ 的 _二叉树_ 或者 _虚拟二叉树_ 的代理对象。如果其不[按语境转换](https://zh.cppreference.com/w/cpp/language/implicit_conversion)成 `true`或者指代 _虚拟二叉树_ 那么行为[未定义](https://zh.cppreference.com/w/cpp/language/ub)。
+返回指代**提供其所指代的 _二叉树_ 所占据的 _树位置_ 的 _二叉树_ 或者 _虚拟二叉树_**（即父节点）的代理对象，语义与 [`go_up`](#go_up) 的转移目标一致。如果其不[按语境转换](https://zh.cppreference.com/w/cpp/language/implicit_conversion)成 `true`或者指代 _虚拟二叉树_ 那么行为[未定义](https://zh.cppreference.com/w/cpp/language/ub)。
 
 ### get_children
 

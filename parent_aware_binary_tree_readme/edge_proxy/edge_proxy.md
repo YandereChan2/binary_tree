@@ -86,6 +86,8 @@ T* operator->()const noexcept;
 
 运算符重载，以提供访问其指代的 _树位置_ 上的 _二叉树_ 所保有的元素的能力。如果其不[按语境转换](https://zh.cppreference.com/w/cpp/language/implicit_conversion)成 `true` ，那么行为[未定义](https://zh.cppreference.com/w/cpp/language/ub)。
 
+如果其所指代的 _树位置_ 由 _虚拟二叉树_ 提供，那么行为同样[未定义](https://zh.cppreference.com/w/cpp/language/ub)：_虚拟二叉树_ 不保有元素，其数据成员中并没有生存期内的 `T` 对象。`get_parent()` 在树根位置上的返回值正是指代 _虚拟二叉树_ 的代理，因此**不得对其解引用**。
+
 ### get_left, get_right
 
 ```C++
@@ -104,7 +106,7 @@ proxy get_right()const noexcept;
 proxy get_parent()const noexcept;
 ```
 
-返回指代其所指代的 _树位置_ 的 _二叉树_ 所占据的 _树位置_ 的代理对象。如果其所指代的树位置由 _虚拟二叉树_ 提供，那么行为[未定义](https://zh.cppreference.com/w/cpp/language/ub)。
+返回指代**提供其所指代的 _树位置_ 的 _二叉树_**（即父节点）所占据的 _树位置_ 的代理对象，语义与 [`go_up`](#go_up) 的转移目标一致。如果其所指代的树位置由 _虚拟二叉树_ 提供，那么行为[未定义](https://zh.cppreference.com/w/cpp/language/ub)。
 
 ### get_children
 

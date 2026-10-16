@@ -6,7 +6,18 @@
 
 `node_proxy` 可以[隐式转换](https://zh.cppreference.com/w/cpp/language/implicit_conversion)到 `node_const_proxy` ,反过来不行。
 
-`edge_proxy` 和 `edge_const_proxy` 可以[隐式转换](https://zh.cppreference.com/w/cpp/language/implicit_conversion)成 `node_proxy` 和 `node_const_proxy` ,反过来不行。该隐式转换会得到对应 _树位置_ 上的 _二叉树_ 的代理。该转换不保证散列值不变。
+`edge_proxy` 和 `edge_const_proxy` 与 `node_proxy` 和 `node_const_proxy` 之间有如下[隐式转换](https://zh.cppreference.com/w/cpp/language/implicit_conversion)（并非两两互相都能转换）：
+
+- `node_proxy` 可以通过构造函数 `node_const_proxy(node_proxy)noexcept` 转换为 `node_const_proxy`。
+- `edge_proxy` 可以通过构造函数 `node_proxy(edge_proxy)noexcept` 转换为 `node_proxy`。
+- `edge_const_proxy` 可以通过构造函数 `node_const_proxy(edge_const_proxy)noexcept` 转换为 `node_const_proxy`。
+- `edge_proxy` 可以隐式转换为 `edge_const_proxy`。
+
+即 `edge_proxy` → `node_const_proxy` 与 `edge_const_proxy` → `node_proxy` **不可用**（前者需要连续两次用户定义转换，后者会丢失 const 性）；`node_const_proxy` → `node_proxy` 也不可行。
+
+该隐式转换会得到对应 _树位置_ 上的 _二叉树_ 的代理。该转换不保证散列值不变。
+
+本类型的 _二叉树_ 不保有父节点指针，因此没有 `node_proxy` → `edge_proxy` 的转换——无法由节点回到"指向它的 _树位置_"，只能用 `get_children()` 取得子 _树位置_。
 
 ## 成员类型
 
