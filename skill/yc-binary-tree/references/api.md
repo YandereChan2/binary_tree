@@ -15,7 +15,7 @@
 | `allocator_type` | `Alloc` |
 | `value_type` | `T` |
 | `reference` | `T&` |
-| `pointer` | `std::allocator_traits<Alloc>::pointer`（分配给节点的存储、节点的左右 _树位置_ 与根都由它表示；`Alloc::pointer` 为 fancy pointer 时即为该 fancy pointer） |
+| `pointer` | `std::allocator_traits<Alloc>::pointer` |
 | `edge_proxy` | `details::binary_tree_edge_proxy<T, placeholder_alloc>` |
 | `edge_const_proxy` | `details::binary_tree_edge_const_proxy<T, placeholder_alloc>` |
 | `node_proxy` | `details::binary_tree_node_proxy<T, placeholder_alloc>` |
@@ -66,10 +66,12 @@
 
 | 签名 | 说明 |
 |---|---|
-| `template<class F> void for_each(F&& f) noexcept` | 中序遍历，回调收到 `T&` |
-| `template<class F> void for_each(F&& f) const noexcept` | 中序遍历，回调收到 `const T&` |
+| `template<class F> void for_each(F&& f) noexcept(is_nothrow_invocable_v<F&, T&>)` | 中序遍历，回调收到 `T&` |
+| `template<class F> void for_each(F&& f) const noexcept(is_nothrow_invocable_v<F&, const T&>)` | 中序遍历，回调收到 `const T&` |
 
-供容器在销毁节点前做收尾（如哈希表先把所有桶摘链，再 `clear()` 销毁桶节点）。`f` 不得改变树结构。右子树走循环不递归，有左孩子时才递归一次，递归深度 ≤ 树高；析构走的 `erase()` 是纯迭代。
+两者的 `noexcept` 是条件性的、取决于 `f`：`f` 能无异常接受对应左值时整次遍历即 `noexcept`，否则 `f` 抛出的异常向调用方传播。因此把 `noexcept` lambda 传进来即可在 `noexcept` 上下文（如 `tree_hash_set::clear()`）中安全调用。
+
+供容器在销毁节点前做收尾（如哈希表先把所有桶摘链，再 `clear()` 销毁桶节点）。`f` 不得改变树结构。
 
 ### 旋转
 
@@ -200,11 +202,13 @@ enum child_check {
 
 | 代理 | 哈希对象 |
 |---|---|
-| `binary_tree::edge_proxy` / `edge_const_proxy` | `std::addressof(*para.ptr)`——槽位地址；`!valid()` 时返回 `0` |
-| `binary_tree::node_proxy` / `node_const_proxy` | `p.ptr`——节点地址 |
-| `parent_aware::edge_proxy` / `edge_const_proxy` | `std::addressof(para.child())`——槽位地址；`!valid()` 时返回 `0` |
-| `parent_aware::node_proxy` / `node_const_proxy` | `para.node`——节点地址 |
+| `binary_tree::edge_proxy` / `edge_const_proxy` | 槽位指针；失效时为 `0` |
+| `binary_tree::node_proxy` / `node_const_proxy` | 节点指针 |
+| `parent_aware::edge_proxy` / `edge_const_proxy` | 槽位地址；失效时为 `0` |
+| `parent_aware::node_proxy` / `node_const_proxy` | 节点指针 |
+
+这 8 个特化要求 `std::hash<std::allocator_traits<Alloc>::pointer>` 可用。`Alloc::pointer` 是自定义 [_花式指针 (fancy pointer)_](https://zh.cppreference.com/w/cpp/named_req/Allocator#.E8.8A.B1.E5.BC.8F.E6.8C.87.E9.92.88) 时，需要由用户为该类型提供 `std::hash` 特化。
 
 哈希与 `operator==` 保持一致：相等（同槽位 / 同节点）的代理必得相同哈希。因此 8 种代理都可以直接作为 `std::unordered_set`、`std::unordered_map` 的键，无效边（默认构造的代理）同样可以安全地参与比较与哈希。
 
-> 注：节点 `left` 位于偏移 0，所以**左子边**的槽位地址恰好等于该节点自身地址，于是 `hash(左子边) == hash(该节点的 node_proxy)`。二者是不同类型，各自独立使用即可；只是直接比对哈希值时要意识到这种数值巧合。
+> 注意：**左子边**与其所指代的 _二叉树_ 的 `node_proxy` 虽然指代同一个对象，但属于不同的特化，哈希值不作保证相同。判断它们指代同一对象请使用 `operator==` 。

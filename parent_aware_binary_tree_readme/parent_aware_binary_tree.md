@@ -36,7 +36,7 @@ template<
 |`value_type`|`T`|
 |`allocator_type`|`Alloc`|
 |`reference`|`T&`|
-|`pointer`|[`std::allocator_traits<Alloc>::pointer`](https://zh.cppreference.com/w/cpp/memory/allocator_traits)。若 `Alloc::pointer` 不是裸指针，本类型即为该 [_花式指针 (fancy pointer)_](https://zh.cppreference.com/w/cpp/named_req/Allocator#.E8.8A.B1.E5.BC.8F.E6.8C.87.E9.92.88)，节点所占据的存储、节点的左右 _树位置_、`parent` 以及哨兵均由它表示|
+|`pointer`|[`std::allocator_traits<Alloc>::pointer`](https://zh.cppreference.com/w/cpp/memory/allocator_traits)|
 |[`edge_proxy`](edge_proxy/edge_proxy.md)|表示 _树位置_ 的轻量级代理对象。|
 |[`edge_const_proxy`](edge_proxy/edge_proxy.md)|表示 _树位置_ 的轻量级代理对象。对这个位置的树的元素提供只读访问|
 |[`node_proxy`](node_proxy/node_proxy.md)|表示 _二叉树_ 的轻量级代理对象。|

@@ -5,7 +5,7 @@ binary_tree(); //(1)
 ```
 
 ```C++
-explicit binary_tree(const Alloc& a); //(2)
+explicit binary_tree(const Alloc& a)noexcept; //(2)
 ```
 
 ```C++

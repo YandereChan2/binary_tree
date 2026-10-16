@@ -191,7 +191,9 @@ namespace Yc
     }
 }
 
-// std::hash 特化：基于子节点地址进行哈希
+// std::hash 特化：基于子节点槽位的地址进行哈希。
+// 直接委托给缀饰指针自身的 std::hash（与 node 代理一致），不做 addressof 转换，
+// 因此要求 std::hash<pointer> 可用。
 template<class T, class Alloc>
 struct std::hash<Yc::details::parent_aware_binary_tree_edge_proxy<T, Alloc>>
 {
@@ -199,7 +201,8 @@ struct std::hash<Yc::details::parent_aware_binary_tree_edge_proxy<T, Alloc>>
     {
         if (!para.valid())
             return 0;
-        return std::hash<std::remove_cvref_t<decltype(std::addressof(para.child()))>>{}(std::addressof(para.child()));
+        using slot_pointer = std::remove_reference_t<decltype(para.child())>*;
+        return std::hash<slot_pointer>{}(std::addressof(para.child()));
     }
 };
 
@@ -309,7 +312,9 @@ namespace Yc
     }
 }
 
-// std::hash 特化：基于子节点地址进行哈希
+// std::hash 特化：基于子节点槽位的地址进行哈希。
+// 直接委托给缀饰指针自身的 std::hash（与 node 代理一致），不做 addressof 转换，
+// 因此要求 std::hash<pointer> 可用。
 template<class T, class Alloc>
 struct std::hash<Yc::details::parent_aware_binary_tree_edge_const_proxy<T, Alloc>>
 {
@@ -317,7 +322,8 @@ struct std::hash<Yc::details::parent_aware_binary_tree_edge_const_proxy<T, Alloc
     {
         if (!para.valid())
             return 0;
-        return std::hash<std::remove_cvref_t<decltype(std::addressof(para.child()))>>{}(std::addressof(para.child()));
+        using slot_pointer = std::remove_reference_t<decltype(para.child())>*;
+        return std::hash<slot_pointer>{}(std::addressof(para.child()));
     }
 };
 
@@ -912,13 +918,16 @@ namespace Yc
         // 再 clear() 销毁桶节点。
         // 非 const 树传入 T&，const 树传入 const T&。
         // 约束：f 不应改变树的结构（增删/旋转），否则遍历位置会失效。
+        // 条件性 noexcept：本函数只做遍历并调用 f，除 f 自身外不抛异常，因此
+        // noexcept 性质完全取决于 f —— 仅当 f 可无异常地接受 T& 时才声明 noexcept。
+        // f 会抛时异常正常向外传播（树保持完整，因为不改结构）。
         template<class F>
-        void for_each(F&& f)noexcept
+        void for_each(F&& f)noexcept(std::is_nothrow_invocable_v<F&, T&>)
         {
             for_each_impl<node_proxy>(nroot(), std::forward<F>(f));
         }
         template<class F>
-        void for_each(F&& f)const noexcept
+        void for_each(F&& f)const noexcept(std::is_nothrow_invocable_v<F&, const T&>)
         {
             for_each_impl<node_const_proxy>(cnroot(), std::forward<F>(f));
         }
@@ -932,8 +941,13 @@ namespace Yc
         // （析构走的 erase() 仍是纯迭代，因此深左单链的构造与销毁都不会爆栈。）
         // 本类型其实可以借 parent 指针写成不递归的版本，但为与 binary_tree 完全一致而
         // 刻意共用同一套实现，便于两个头文件对照维护。
+        // noexcept 一路到底：谓词只描述"f 能否无异常接受引用"，与递归深度无关，
+        // 因此本函数直接沿用与公开 for_each 相同的规格，不做自我判断。这样在 f 不抛
+        // （公开入口为 noexcept）时，本函数体里也不会被生成"异常逃逸即 terminate"
+        // 的捕获代码；f 会抛时规格为假，异常照常传播。
         template<class Proxy, class F>
-        static void for_each_impl(Proxy p, F&& f)noexcept
+        static void for_each_impl(Proxy p, F&& f)
+            noexcept(std::is_nothrow_invocable_v<F&, decltype(*p)>)
         {
         derecur:
             if (p.null())

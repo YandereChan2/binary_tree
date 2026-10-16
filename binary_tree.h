@@ -150,8 +150,9 @@ namespace Yc
         };
     }
 }
-// std::hash 特化：与 parent_aware_binary_tree 一致——哈希"槽位地址"，
-// 无效边（默认构造的代理）返回 0；不要求 std::hash<fancy pointer> 存在
+// std::hash 特化：哈希"槽位地址"，无效边（默认构造的代理）返回 0。
+// 直接委托给缀饰指针自身的 std::hash（与 node 代理一致），不做 addressof 转换，
+// 因此要求 std::hash<pointer> 可用。
 template<class T, class Alloc>
 struct std::hash<Yc::details::binary_tree_edge_proxy<T, Alloc>>
 {
@@ -159,7 +160,7 @@ struct std::hash<Yc::details::binary_tree_edge_proxy<T, Alloc>>
     {
         if (!para.valid())
             return 0;
-        return std::hash<std::remove_cvref_t<decltype(std::addressof(*para.ptr))>>{}(std::addressof(*para.ptr));
+        return std::hash<decltype(para.ptr)>{}(para.ptr);
     }
 };
 namespace Yc
@@ -177,13 +178,16 @@ namespace Yc
 
             // ptr：指向节点中 left（或 right）成员的指针
             pointer_to_pointer ptr{};
+            // 内部工厂：由"指针槽位"构造常量边代理。构造函数本身是私有的，
+            // 这样 pointer_to_pointer 这个内部类型不会构成一条对外的隐式转换路径。
+            static binary_tree_edge_const_proxy make(pointer_to_pointer p)noexcept
+            {
+                return binary_tree_edge_const_proxy{ p };
+            }
         public:
             binary_tree_edge_const_proxy() = default;
             binary_tree_edge_const_proxy(const binary_tree_edge_const_proxy&) = default;
             binary_tree_edge_const_proxy(const binary_tree_edge_proxy<T, Alloc>& p)noexcept : ptr{ p.ptr }
-            {
-            }
-            binary_tree_edge_const_proxy(pointer_to_pointer ptr)noexcept :ptr{ ptr }
             {
             }
             binary_tree_edge_const_proxy& operator=(const binary_tree_edge_const_proxy&) = default;
@@ -219,11 +223,11 @@ namespace Yc
             }
             binary_tree_edge_const_proxy get_left()const noexcept
             {
-                return { std::pointer_traits<pointer_to_pointer>::pointer_to(static_cast<binary_tree_node<T, Alloc>&>(**ptr).left) };
+                return make(std::pointer_traits<pointer_to_pointer>::pointer_to(static_cast<binary_tree_node<T, Alloc>&>(**ptr).left));
             }
             binary_tree_edge_const_proxy get_right()const noexcept
             {
-                return { std::pointer_traits<pointer_to_pointer>::pointer_to(static_cast<binary_tree_node<T, Alloc>&>(**ptr).right) };
+                return make(std::pointer_traits<pointer_to_pointer>::pointer_to(static_cast<binary_tree_node<T, Alloc>&>(**ptr).right));
             }
             std::pair<binary_tree_edge_const_proxy, binary_tree_edge_const_proxy> get_children()const noexcept
             {
@@ -243,8 +247,9 @@ namespace Yc
         };
     }
 }
-// std::hash 特化：与 parent_aware_binary_tree 一致——哈希"槽位地址"，
-// 无效边（默认构造的代理）返回 0；不要求 std::hash<fancy pointer> 存在
+// std::hash 特化：哈希"槽位地址"，无效边（默认构造的代理）返回 0。
+// 直接委托给缀饰指针自身的 std::hash（与 node 代理一致），不做 addressof 转换，
+// 因此要求 std::hash<pointer> 可用。
 template<class T, class Alloc>
 struct std::hash<Yc::details::binary_tree_edge_const_proxy<T, Alloc>>
 {
@@ -252,7 +257,7 @@ struct std::hash<Yc::details::binary_tree_edge_const_proxy<T, Alloc>>
     {
         if (!para.valid())
             return 0;
-        return std::hash<std::remove_cvref_t<decltype(std::addressof(*para.ptr))>>{}(std::addressof(*para.ptr));
+        return std::hash<decltype(para.ptr)>{}(para.ptr);
     }
 };
 namespace Yc
@@ -598,73 +603,6 @@ namespace Yc
             recur_and_write_impl(l, vg, cg, lh);
             goto tmp;
         }
-    //    template<
-    //        class ValueGetter,
-    //        class ChildrenGetter,
-    //        class InitializeHandle
-    //    >
-    //    void recur_and_overwrite_impl(
-    //        edge_const_proxy p,
-    //        ValueGetter& vg,
-    //        ChildrenGetter& cg,
-    //        InitializeHandle h
-    //    )
-    //    {
-    //        derecur:
-    //        if (!h)
-    //        {
-    //            erase(p);
-    //            return;
-    //        }
-    //        if (p)
-    //        {
-    //            T& t = (T&)*p;
-    //            if constexpr (requires{
-    //                t = std::invoke(vg, h);
-    //            } && noexcept(t = std::invoke(vg, h)))
-    //            {
-    //                t = std::invoke(vg, h);
-    //            }
-    //            else if constexpr (requires{
-    //                t = T{ std::invoke(vg,h) };
-    //            } && noexcept(t = T{ std::invoke(vg,h) }))
-    //            {
-    //                t = T{ std::invoke(vg,h) };
-    //            }
-    //            else
-    //            {
-    //                std::allocator_traits<Alloc>::destroy(alloc, (T*)p.operator->());
-    //                static_assert(std::is_nothrow_constructible_v<T, decltype(std::invoke(vg, h))>);
-    //                std::allocator_traits<Alloc>::construct(alloc, (T*)p.operator->(), std::invoke(vg, h));
-    //            }
-    //        }
-    //        else
-    //        {
-    //            emplace(p, std::invoke(vg, h));
-    //        }
-    //        auto [lh, rh] = std::invoke(cg, h);
-    //        auto [l, r] = p.get_children();
-    //        bool bl = (bool)lh, br = (bool)rh;
-    //        if (!(bl && br))
-    //        {
-    //            if (bl)
-    //            {
-    //                p = l;
-    //                h = lh;
-    //                goto derecur;
-    //            }
-    //            if (br)
-    //            {
-    //            tmp:
-    //                p = r;
-    //                h = rh;
-    //                goto derecur;
-    //            }
-    //            return;
-    //        }
-    //        recur_and_overwrite_impl(l, vg, cg, lh);
-    //        goto tmp;
-    //    }
     public:
         // 递归写入：从外部树形结构复制到当前树
         // 约束：h 必须可 bool 转换，且值类型可通过 emplace 构造
@@ -893,13 +831,16 @@ namespace Yc
         // 供容器在销毁节点前做收尾（例如哈希表先把所有桶摘链，再 clear() 销毁桶节点）。
         // 非 const 树传入 T&，const 树传入 const T&。
         // 约束：f 不应改变树的结构（增删/旋转），否则遍历位置会失效。
+        // 条件性 noexcept：本函数只做遍历并调用 f，除 f 自身外不抛异常，因此
+        // noexcept 性质完全取决于 f —— 仅当 f 可无异常地接受 T& 时才声明 noexcept。
+        // f 会抛时异常正常向外传播（树保持完整，因为不改结构）。
         template<class F>
-        void for_each(F&& f)noexcept
+        void for_each(F&& f)noexcept(std::is_nothrow_invocable_v<F&, T&>)
         {
             for_each_impl<node_proxy>(nroot(), std::forward<F>(f));
         }
         template<class F>
-        void for_each(F&& f)const noexcept
+        void for_each(F&& f)const noexcept(std::is_nothrow_invocable_v<F&, const T&>)
         {
             for_each_impl<node_const_proxy>(cnroot(), std::forward<F>(f));
         }
@@ -911,8 +852,13 @@ namespace Yc
         //   - 右子树   -> 本节点已访问，直接 goto 循环过去，不递归。
         // 于是递归深度 = 沿途有左孩子的节点数 ≤ 树高，纯右单链完全不递归。
         // （析构走的 erase() 仍是纯迭代，因此深左单链的构造与销毁都不会爆栈。）
+        // noexcept 一路到底：谓词只描述"f 能否无异常接受引用"，与递归深度无关，
+        // 因此本函数直接沿用与公开 for_each 相同的规格，不做自我判断。这样在 f 不抛
+        // （公开入口为 noexcept）时，本函数体里也不会被生成"异常逃逸即 terminate"
+        // 的捕获代码；f 会抛时规格为假，异常照常传播。
         template<class Proxy, class F>
-        static void for_each_impl(Proxy p, F&& f)noexcept
+        static void for_each_impl(Proxy p, F&& f)
+            noexcept(std::is_nothrow_invocable_v<F&, decltype(*p)>)
         {
         derecur:
             if (p.null())
