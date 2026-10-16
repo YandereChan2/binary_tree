@@ -539,6 +539,11 @@ namespace Yc
                 std::pointer_traits<typename std::allocator_traits<node_allocator>::pointer>::pointer_to(*(node_type*)std::to_address(p)), 1);
         }
     public:
+        // 分配器所提供的指针类型。分配器先被 rebind 到一个空占位类型以统一管理
+        // 节点内存，因此这是模板参数 Alloc（而非某次 rebind 结果）的 pointer；
+        // 当它不是裸指针（fancy pointer，如 boost::interprocess::offset_ptr）时，
+        // 节点所占据的存储、节点的左右 _树位置_ 与根本身都由它表示。
+        using pointer = std::allocator_traits<Alloc>::pointer;
         Alloc get_allocator()const noexcept
         {
             return alloc;

@@ -15,6 +15,7 @@
 | `allocator_type` | `Alloc` |
 | `value_type` | `T` |
 | `reference` | `T&` |
+| `pointer` | `std::allocator_traits<Alloc>::pointer`（分配给节点的存储、节点的左右 _树位置_ 与根都由它表示；`Alloc::pointer` 为 fancy pointer 时即为该 fancy pointer） |
 | `edge_proxy` | `details::binary_tree_edge_proxy<T, placeholder_alloc>` |
 | `edge_const_proxy` | `details::binary_tree_edge_const_proxy<T, placeholder_alloc>` |
 | `node_proxy` | `details::binary_tree_node_proxy<T, placeholder_alloc>` |
@@ -106,6 +107,8 @@
 `#include "parent_aware_binary_tree.h"`
 
 上表中除下列差异外**全部相同**（`swap_node` / `child_check` / `for_each` 两个实现都有，签名与语义一致）：
+
+`pointer` 同样为 `std::allocator_traits<Alloc>::pointer`；在父感知版本中它另外还表示节点的 `parent` 与哨兵节点。
 
 ### 额外的导航
 

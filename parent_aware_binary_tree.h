@@ -615,6 +615,11 @@ namespace Yc
         using allocator_type = Alloc;
         using value_type = T;
         using reference = T&;
+        // 分配器所提供的指针类型。分配器先被 rebind 到一个空占位类型以统一管理
+        // 节点内存，因此这是模板参数 Alloc（而非某次 rebind 结果）的 pointer；
+        // 当它不是裸指针（fancy pointer，如 boost::interprocess::offset_ptr）时，
+        // 节点所占据的存储、节点的左右 _树位置_、parent 与哨兵节点都由它表示。
+        using pointer = std::allocator_traits<Alloc>::pointer;
         using edge_proxy = details::parent_aware_binary_tree_edge_proxy<T, place_holder_allocator>;
         using edge_const_proxy = details::parent_aware_binary_tree_edge_const_proxy<T, place_holder_allocator>;
         using node_proxy = details::parent_aware_binary_tree_node_proxy<T, place_holder_allocator>;
