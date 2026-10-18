@@ -182,6 +182,60 @@ TEST(binary_tree, for_each_left_chain_visits_every_node)
     EXPECT_EQ(in_order(t), "5,4,3,2,1,0,");
 }
 
+// for_each 与 std::for_each 一样按值返回函数对象：有状态函数对象能带出累积结果
+namespace
+{
+    struct summing_functor
+    {
+        int sum = 0;
+        std::size_t count = 0;
+        void operator()(const int& v) noexcept
+        {
+            sum += v;
+            ++count;
+        }
+    };
+}
+
+TEST(binary_tree, for_each_returns_stateful_functor)
+{
+    BT t;
+    build_sample(t);
+
+    auto acc = t.for_each(summing_functor{});
+    EXPECT_EQ(acc.sum, 21);                     // 1+2+3+4+5+6
+    EXPECT_EQ(acc.count, std::size_t{ 6 });
+
+    const BT& ct = t;
+    auto cacc = ct.for_each(summing_functor{});
+    EXPECT_EQ(cacc.sum, 21);
+
+    // 按值传入：调用方自己的对象不受影响
+    summing_functor own;
+    auto acc2 = t.for_each(own);
+    EXPECT_EQ(own.sum, 0);
+    EXPECT_EQ(acc2.sum, 21);
+
+    // 空树：函数对象原样返回
+    BT empty;
+    auto nothing = empty.for_each(summing_functor{});
+    EXPECT_EQ(nothing.count, std::size_t{ 0 });
+}
+
+TEST(parent_aware_binary_tree, for_each_returns_stateful_functor)
+{
+    PA t;
+    build_sample(t);
+
+    auto acc = t.for_each(summing_functor{});
+    EXPECT_EQ(acc.sum, 21);
+    EXPECT_EQ(acc.count, std::size_t{ 6 });
+
+    const PA& ct = t;
+    auto cacc = ct.for_each(summing_functor{});
+    EXPECT_EQ(cacc.sum, 21);
+}
+
 TEST(binary_tree, for_each_right_chain_visits_every_node)
 {
     BT t;

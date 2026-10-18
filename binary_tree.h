@@ -830,19 +830,24 @@ namespace Yc
         // 中序遍历，对每个节点的值调用 f。语义与 parent_aware_binary_tree::for_each 相同，
         // 供容器在销毁节点前做收尾（例如哈希表先把所有桶摘链，再 clear() 销毁桶节点）。
         // 非 const 树传入 T&，const 树传入 const T&。
+        // 与 std::for_each 一致：函数对象按值传入、按值返回，所以有状态函数对象
+        // （累加器、计数器之类）遍历完能带着状态出来：
+        //     auto acc = t.for_each(accumulator{});
         // 约束：f 不应改变树的结构（增删/旋转），否则遍历位置会失效。
-        // 条件性 noexcept：本函数只做遍历并调用 f，除 f 自身外不抛异常，因此
-        // noexcept 性质完全取决于 f —— 仅当 f 可无异常地接受 T& 时才声明 noexcept。
-        // f 会抛时异常正常向外传播（树保持完整，因为不改结构）。
+        // 条件性 noexcept：本函数只做遍历、调用 f、再把 f 移出来，因此 noexcept 性质
+        // 只取决于这两件事 —— f 能无异常接受 T&、且 f 能无异常地移动构造。
+        // f 会抛时异常正常向外传播（树保持完整，因为不改结构；f 的副本随栈展开销毁）。
         template<class F>
-        void for_each(F&& f)noexcept(std::is_nothrow_invocable_v<F&, T&>)
+        F for_each(F f)noexcept(std::is_nothrow_invocable_v<F&, T&>&& std::is_nothrow_move_constructible_v<F>)
         {
-            for_each_impl<node_proxy>(nroot(), std::forward<F>(f));
+            for_each_impl<node_proxy>(nroot(), f);
+            return f;
         }
         template<class F>
-        void for_each(F&& f)const noexcept(std::is_nothrow_invocable_v<F&, const T&>)
+        F for_each(F f)const noexcept(std::is_nothrow_invocable_v<F&, const T&>&& std::is_nothrow_move_constructible_v<F>)
         {
-            for_each_impl<node_const_proxy>(cnroot(), std::forward<F>(f));
+            for_each_impl<node_const_proxy>(cnroot(), f);
+            return f;
         }
 
     private:

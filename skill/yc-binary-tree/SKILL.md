@@ -137,11 +137,16 @@ BT::swap_node(a, a.get_left());       // 同样的签名与语义
 ```cpp
 t.for_each([](int& v) { /* 处理每个节点 */ });          // 普通回调：可能抛，for_each 非 noexcept
 t.for_each([](int& v) noexcept { /* ... */ });           // noexcept 回调：整次遍历也 noexcept
+
+// 与 std::for_each 一样按值传入、按值返回：有状态函数对象能把状态带出来
+struct accumulator { int sum = 0; void operator()(int& v) noexcept { sum += v; } };
+auto acc = t.for_each(accumulator{});
+// acc.sum == 全树元素之和
 ```
 
 中序、无分配；容器用它做销毁前的收尾（例如哈希表先把所有桶摘链，再 `clear()` 销毁桶节点）。回调不得改变树结构。
 
-`for_each` 的 `noexcept` 是条件性的、取决于回调：`noexcept(is_nothrow_invocable_v<F&, T&>)`（const 版为 `const T&`）。回调不抛时整次遍历为 `noexcept`，可以在 `noexcept` 函数里安全使用（`tree_hash_set::clear()` 正是传了个 `noexcept` lambda）；回调会抛时异常向调用方传播。
+`for_each` 按值接收函数对象、并把副本按值返回（与 `std::for_each` 一致），所以有状态函数对象能带出累积结果。它的 `noexcept` 是条件性的：`noexcept(is_nothrow_invocable_v<F&, T&> && is_nothrow_move_constructible_v<F>)`（const 版为 `const T&`）。回调不抛且可无异常移动时整次遍历为 `noexcept`，可以在 `noexcept` 函数里安全使用（`tree_hash_set::clear()` 正是传了个 `noexcept` lambda）；回调会抛时异常向调用方传播。
 
 ## 两实现差异速查
 
