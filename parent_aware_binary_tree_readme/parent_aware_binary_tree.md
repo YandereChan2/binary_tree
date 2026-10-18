@@ -98,7 +98,6 @@ template<
 
 |||
 |:-|:-|
-|[`child_check`](child_check.md)|用于 [`swap_node`](swap_node.md) 的邻接关系检查位掩码。|
 |[`parent_aware_binary_tree_functional::get_children`](functional_get_children.md)|定制点对象，可统一对四种代理类型调用。|
 
 ### 非成员函数

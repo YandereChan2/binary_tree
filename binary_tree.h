@@ -470,20 +470,6 @@ namespace Yc
     {
         constexpr inline Yc::details::binary_tree_get_children_t get_children{};
     }
-    // 相邻情形检查掩码：与 parent_aware_binary_tree.h 共用同一份定义。
-    // 两个头文件可能被同一个翻译单元同时包含，故用宏守卫避免重定义。
-#ifndef YC_CHILD_CHECK_DEFINED
-#define YC_CHILD_CHECK_DEFINED
-    enum child_check
-    {
-        no_check = 0,
-        check_left = 1,
-        check_right = 2,
-        check_left_rev = 4,
-        check_right_rev = 8,
-        check_all = 15, // check_all == check_left | check_right | check_left_rev | check_right_rev
-    };
-#endif
     // ===================================================================
     // binary_tree：无父节点指针的二叉树容器
     //
@@ -497,7 +483,7 @@ namespace Yc
     //   - 导航：root(), nroot()
     //   - 修改：emplace, insert, erase, cut, splice
     //   - 旋转：left_rotate, right_rotate, checked_left_rotate, checked_right_rotate
-    //   - 交换：swap, swap_sub_tree, swap_node（带 child_check）
+    //   - 交换：swap, swap_sub_tree, swap_node
     //   - 遍历：for_each
     //   - 递归构造：recur_and_write
     // ===================================================================
@@ -1016,69 +1002,19 @@ namespace Yc
             right_rotate(q);
             return true;
         }
-        // 交换两个节点（同时交换其子树）
-        // 与 parent_aware_binary_tree 一致地带 child_check 相邻检查：两个被交换的节点
-        // 互为父子时，朴素地交换槽位会破坏结构（互指成环、丢节点），四种相邻形态各有
-        // 专门的重连分支。本实现没有父指针，因此只需重连 left/right 槽位，不需要维护 parent。
-        static void swap_node(edge_const_proxy l, edge_const_proxy r, child_check chk = check_all)noexcept
+        // 交换两个节点：净效果是"两个位置上的值互换、子树留在原位"。
+        //   （对位置 l 来说，交换后站着的是原 r 的节点，但它带的是原 l 的子树；
+        //    换成值的视角就是：值换了，形状没动。）
+        //
+        // 不需要判断两个节点是否互为父子：
+        //   先交换槽位时，父节点里指向孩子的那个槽位会短暂变成"自指"，随后成对交换
+        //   两个节点的孩子槽位，正好把自指解成"父节点上位、孩子落回原位"。
+        //   两种相邻形态（左右对称）与反转顺序都走同一条路径，结果与"值互换、结构不变"
+        //   的语义一致；已用穷举测试（所有非空边两两组合，含单链、之字形）核过。
+        //
+        // 前置条件：两个边都指代真实节点（(bool)l 与 (bool)r 为真）。
+        static void swap_node(edge_const_proxy l, edge_const_proxy r)noexcept
         {
-            if (chk & check_left)
-            {
-                if (l.get_left() == r)
-                {
-                    // r 是 l 的左孩子：把 r 提到 l 的位置，l 变成 r 的左孩子
-                    auto lr = l.get_right();
-                    auto rl = r.get_left();
-                    auto rr = r.get_right();
-                    swap_sub_tree(l, r);
-                    swap_sub_tree(r, rl);
-                    swap_sub_tree(lr, rr);
-                    return;
-                }
-            }
-            if (chk & check_right)
-            {
-                if (l.get_right() == r)
-                {
-                    // r 是 l 的右孩子：把 r 提到 l 的位置，l 变成 r 的右孩子
-                    auto ll = l.get_left();
-                    auto rl = r.get_left();
-                    auto rr = r.get_right();
-                    swap_sub_tree(l, r);
-                    swap_sub_tree(r, rr);
-                    swap_sub_tree(ll, rl);
-                    return;
-                }
-            }
-            // 反转形态：先交换两个代理，即可复用上面的两段重连逻辑
-            std::swap(l, r);
-            if (chk & check_left_rev)
-            {
-                if (l.get_left() == r)
-                {
-                    auto lr = l.get_right();
-                    auto rl = r.get_left();
-                    auto rr = r.get_right();
-                    swap_sub_tree(l, r);
-                    swap_sub_tree(r, rl);
-                    swap_sub_tree(lr, rr);
-                    return;
-                }
-            }
-            if (chk & check_right_rev)
-            {
-                if (l.get_right() == r)
-                {
-                    auto ll = l.get_left();
-                    auto rl = r.get_left();
-                    auto rr = r.get_right();
-                    swap_sub_tree(l, r);
-                    swap_sub_tree(r, rr);
-                    swap_sub_tree(ll, rl);
-                    return;
-                }
-            }
-            // 两个节点不相邻（或调用方显式传 no_check）：朴素交换槽位 + 各自子槽位
             swap_sub_tree(l, r);
             auto [ll, lr] = l.get_children();
             auto [rl, rr] = r.get_children();

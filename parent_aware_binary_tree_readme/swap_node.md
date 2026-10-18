@@ -1,23 +1,14 @@
 # `Yc::parent_aware_binary_tree<T, Alloc>::swap_node`
 
 ```C++
-static void swap_node(edge_const_proxy l, edge_const_proxy r, child_check chk = check_all)noexcept
+static void swap_node(edge_const_proxy l, edge_const_proxy r)noexcept
 ```
 
-交换两个 _二叉树_ 节点，同时交换它们各自的子树。相当于先调用 [`swap_sub_tree(l, r)`](swap_sub_tree.md) 交换节点位置，再交换左右子节点位置。
+交换两个 _二叉树_ 节点。实现上是先调用 [`swap_sub_tree(l, r)`](swap_sub_tree.md) 交换两个 _树位置_ 上的节点，再交换这两个节点的左右子节点位置。净效果是**两个 _树位置_ 上的值互换、子树留在原位**（树的形状不变）。
 
 `l` 和 `r` 都必须是指代**存在的节点**的 _树位置_。传入空 _树位置_（`(bool)l == false`，例如对没有左孩子的节点取 `get_left()`）会解引用空节点，行为[未定义](https://zh.cppreference.com/w/cpp/language/ub)。
 
-参数 `chk` 指定了需要检查的特殊邻接情况。当且仅当 `l` 和 `r` 互为父子关系且满足对应检查位时，`swap_node` 会采取特殊的交换策略以确保正确性。检查位的语义如下：
-
-- `check_left`：检查 `l` 的左子节点是否为 `r`（即 `r` 是 `l` 的直接左子节点）。
-- `check_right`：检查 `l` 的右子节点是否为 `r`。
-- `check_left_rev`：检查 `r` 的左子节点是否为 `l`。
-- `check_right_rev`：检查 `r` 的右子节点是否为 `l`。
-- `check_all`：等于 `check_left | check_right | check_left_rev | check_right_rev`。
-- `no_check`：不检查任何邻接关系，假定 `l` 和 `r` 不相邻。
-
-默认参数 `check_all` 可以处理大多数常见情况。如果不确定邻接关系，建议保持默认值。如果确定 `l` 和 `r` 不相邻，可以使用 `no_check` 以提高性能。
+两个节点是否互为父子**不需要判断**，也不需要调用方提供任何提示：先交换 _树位置_ 时，父节点里那条指向孩子的 _树位置_ 会短暂地变成自指，紧接着"成对交换孩子 _树位置_"这一步正好把它解成"父节点上位、孩子落回原位"。四种相邻形态（左右各两种顺序）与不相邻形态走的是同一条路径。`swap_sub_tree` 会同时维护 `parent` 链，所以 `go_up` 一类依赖父节点的导航在交换后依然正确。
 
 如果两个 _树位置_ 的来源 `parent_aware_binary_tree` 的分配器不比较相等，则行为[未定义](https://zh.cppreference.com/w/cpp/language/ub)。
 
@@ -26,7 +17,6 @@ static void swap_node(edge_const_proxy l, edge_const_proxy r, child_check chk = 
 ||||
 |-:|-|:-|
 |`l` , `r`|-|指代要进行交换的两个 _二叉树_ 对应的 _树位置_ |
-|`chk`|-|指示需要检查的邻接关系，见 [`Yc::child_check`](child_check.md)|
 
 ## 返回值
 

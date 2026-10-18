@@ -248,7 +248,9 @@ TEST(binary_tree, for_each_right_chain_visits_every_node)
     EXPECT_EQ(in_order(t), "0,1,2,3,4,5,");
 }
 
-// 回归：swap_node 交换相邻（父子）节点曾经会破坏结构
+// swap_node：净效果是"两个位置上的值互换、子树留在原位"。
+// 父子相邻不需要专门分支（先换槽位、再成对换孩子槽位，自指会被自动解掉），
+// 这里把四种相邻形态和不相邻形态都固化成回归用例。
 TEST(binary_tree, swap_node)
 {
     {
@@ -284,13 +286,6 @@ TEST(binary_tree, swap_node)
         build_sample(t);
         auto e = t.root();
         BT::swap_node(e.get_left(), e.get_right());     // 不相邻
-        EXPECT_EQ(shape(t.root()), "(1 (3 (4 . .) (5 . .)) (2 . (6 . .)))");
-    }
-    {
-        BT t;
-        build_sample(t);
-        auto e = t.root();
-        BT::swap_node(e.get_left(), e.get_right(), Yc::no_check);
         EXPECT_EQ(shape(t.root()), "(1 (3 (4 . .) (5 . .)) (2 . (6 . .)))");
     }
 }
@@ -493,19 +488,7 @@ TEST(proxy, get_children_is_noexcept_on_node_proxies)
     SUCCEED();
 }
 
-// 两个头文件共用同一份 child_check 定义，可同时包含
-TEST(proxy, child_check_is_shared_between_headers)
-{
-    static_assert(Yc::no_check == 0);
-    static_assert(Yc::check_left == 1);
-    static_assert(Yc::check_right == 2);
-    static_assert(Yc::check_left_rev == 4);
-    static_assert(Yc::check_right_rev == 8);
-    static_assert(Yc::check_all == 15);
-    SUCCEED();
-}
-
-TEST(swap_node, is_noexcept_and_accepts_child_check)
+TEST(swap_node, is_noexcept)
 {
     static_assert(noexcept(BT::swap_node(std::declval<BT::edge_const_proxy>(), std::declval<BT::edge_const_proxy>())));
     static_assert(noexcept(PA::swap_node(std::declval<PA::edge_const_proxy>(), std::declval<PA::edge_const_proxy>())));

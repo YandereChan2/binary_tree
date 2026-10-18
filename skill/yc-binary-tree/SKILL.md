@@ -120,17 +120,17 @@ bool ok = t.checked_right_rotate(t.root());    // 左子不存在时返回 false
 
 ### 交换节点
 
-两个实现的 `swap_node` 都带 `child_check` 掩码（默认 `check_all`），用于识别父**子相邻**的四种形态并做专门重连——两个被交换的节点互为父子时，直接换指针会互指成环、丢节点：
+两个实现的 `swap_node` 都只有两个参数，净效果是"两个位置上的**值**互换、子树留在原位"，**父子相邻不需要判断也不需要提示**：
 
 ```cpp
 using PA = Yc::parent_aware_binary_tree<int>;
-PA::swap_node(a, a.get_left());       // 默认 check_all，正确识别相邻情形
+PA::swap_node(a, a.get_left());       // 相邻也直接这么写
 
 using BT = Yc::binary_tree<int>;
 BT::swap_node(a, a.get_left());       // 同样的签名与语义
 ```
 
-区别只在实现细节：`parent_aware` 的重连还要维护 `parent` 链，`binary_tree` 只重连 `left`/`right` 槽位。
+实现顺序是关键：先 `swap_sub_tree(l, r)` 换槽位（此时父节点里指向孩子的那条槽位短暂自指），再成对交换两个节点的孩子槽位——自指正好被解成"父节点上位、孩子落回原位"。把这两步反过来（先换孩子）才会互指成环、丢节点。`parent_aware` 的 `swap_sub_tree` 还会顺手维护 `parent` 链。
 
 ### 中序遍历
 
@@ -158,7 +158,7 @@ auto acc = t.for_each(accumulator{});
 | `node_proxy` → `edge_proxy` | **无此转换**（只能 `get_children()`） | 有 `operator edge_proxy()` |
 | 额外 API | — | `parent_of_nroot()`、`parent_of_cnroot()` |
 
-除此之外两边的公开 API 与语义**逐一对齐**：`root`/`croot`/`nroot`/`cnroot`、`cut`/`splice`/`emplace`/`insert`/`erase`/`clear`、`swap`/`swap_sub_tree`/`swap_node(…, child_check)`、`for_each`、四种旋转、`recur_and_write`、`functional::get_children`、8 个代理的接口与 `std::hash` 约定（含"无效边哈希为 0"）、分配器与移动语义。
+除此之外两边的公开 API 与语义**逐一对齐**：`root`/`croot`/`nroot`/`cnroot`、`cut`/`splice`/`emplace`/`insert`/`erase`/`clear`、`swap`/`swap_sub_tree`/`swap_node`、`for_each`、四种旋转、`recur_and_write`、`functional::get_children`、8 个代理的接口与 `std::hash` 约定（含"无效边哈希为 0"）、分配器与移动语义。
 
 ## 迭代而非递归
 
@@ -180,7 +180,7 @@ auto acc = t.for_each(accumulator{});
 3. **`swap_node` / `swap_sub_tree` 要求两个位置都指代真实节点。** `swap_node(l, r)` 里 `(bool)l` 与 `(bool)r` 必须为真——例如 `e` 没有左孩子时 `swap_node(e, e.get_left())` 会解引用空节点（未定义行为，实测会崩）。`swap_sub_tree` 可以交换空槽位，但两个边本身仍需 `valid()`。
 4. **区分 `go_*` 与 `get_*`。** `go_left()` 会改掉代理自身，`get_left()` 不会。想保留原位置就用 `get_*`。
 5. **务必处理返回值。** `emplace`/`insert`/`cut`/`splice` 返回的是被替换下来的旧子树；不接住它就等于当场销毁。要实现"插入后校验、失败则回滚"，就把返回值存起来再 `splice` 回去。
-6. **`swap_node` 保持默认 `check_all`**（两个实现都是）。只有确认两个节点不相邻时才传 `no_check`。
+6. **`swap_node` 只要求两个位置都指代真实节点**（见上一条）。父子相邻不需要额外参数或提示，四种相邻形态与不相邻形态走同一条路径。
 7. **`edge_const_proxy` 与 `edge_proxy` 共享槽位。** 从 `edge_proxy` 转换出来的 const 代理仍指向同一槽位，通过它的导航结果与原代理一致。
 8. **边代理会随结构变动失效。** 边代理指代的是一个"树位置"；旋转、`swap`、`splice` 等改变结构的操作会让节点换位置，长期持有的旧边代理可能已经指到别处。需要跨操作稳定地指向某个节点时，改用 `node_proxy` / `node_const_proxy`。
 
