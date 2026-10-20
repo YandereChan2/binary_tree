@@ -66,10 +66,11 @@
 
 | 签名 | 说明 |
 |---|---|
-| `template<class F> F for_each(F f) noexcept(is_nothrow_invocable_v<F&, T&> && is_nothrow_move_constructible_v<F>)` | 中序遍历，回调收到 `T&`；按值接收并返回函数对象（同 `std::for_each`） |
-| `template<class F> F for_each(F f) const noexcept(is_nothrow_invocable_v<F&, const T&> && is_nothrow_move_constructible_v<F>)` | 中序遍历，回调收到 `const T&`；同上 |
+| `template<class F> F for_each(F f) noexcept(is_nothrow_invocable_v<F&, T&> && is_nothrow_move_constructible_v<F>)` | 以未指定的顺序遍历，回调收到 `T&`；按值接收并返回函数对象（同 `std::for_each`） |
+| `template<class F> F for_each(F f) const noexcept(is_nothrow_invocable_v<F&, const T&> && is_nothrow_move_constructible_v<F>)` | 以未指定的顺序遍历，回调收到 `const T&`；同上 |
 
 两者都按值接收 `f`、并把 `f` 按值返回（与 `std::for_each` 一致），所以有状态函数对象能带出累积结果：`auto acc = t.for_each(accumulator{});`。
+遍历顺序**未指定**，调用方不应依赖它；当前实现是"左 - 本 - 右"的中序，但这只是实现现状，不承诺保持不变。
 `noexcept` 是条件性的、取决于 `f`：`f` 能无异常接受对应左值**且**能无异常移动构造时整次遍历即 `noexcept`，否则 `f` 抛出的异常向调用方传播。因此把 `noexcept` lambda 传进来即可在 `noexcept` 上下文（如 `tree_hash_set::clear()`）中安全调用（lambda 的移动构造总是 `noexcept`）。
 
 供容器在销毁节点前做收尾（如哈希表先把所有桶摘链，再 `clear()` 销毁桶节点）。`f` 不得改变树结构。
@@ -94,6 +95,7 @@
 - `vg`：`h -> T`（值获取）
 - `cg`：`h -> pair<左句柄, 右句柄>`
 - `h`：当前句柄，`bool` 可转换，`false` 表示空
+- 两个子句柄的写入顺序未指定
 - ⚠️ `p` 处**必须为空**，否则 `std::unreachable()`
 
 ### 自由函数与函数对象
