@@ -7,6 +7,16 @@
 //     使根节点也有 parent，统一处理边界情况
 // 支持：分配器感知、复制/移动语义、递归构造、旋转、切割/拼接等操作
 #pragma once
+
+// MSVC 不支持标准 [[no_unique_address]]，要用它的 [[msvc::no_unique_address]]
+#ifndef YC_NO_UNIQUE_ADDRESS
+#if defined(_MSC_VER)
+#define YC_NO_UNIQUE_ADDRESS [[msvc::no_unique_address]]
+#else
+#define YC_NO_UNIQUE_ADDRESS [[no_unique_address]]
+#endif
+#endif
+
 #include <memory>
 #include <type_traits>
 #include <functional>
@@ -617,8 +627,8 @@ namespace Yc
         using node_proxy = details::parent_aware_binary_tree_node_proxy<T, place_holder_allocator>;
         using node_const_proxy = details::parent_aware_binary_tree_node_const_proxy<T, place_holder_allocator>;
     private:
-        // 分配器（使用 [[no_unique_address]] 以零开销存储无状态分配器）
-        [[no_unique_address]] Alloc alloc{};
+        // 分配器（使用 YC_NO_UNIQUE_ADDRESS 以零开销存储无状态分配器）
+        YC_NO_UNIQUE_ADDRESS Alloc alloc{};
         // 哨兵根节点：自身不存储数据，仅通过 left 指针引用实际树根
         // 使根的父指针也有效，统一处理所有边界情况
         details::parent_aware_binary_tree_node_base1<place_holder_allocator> root_node{};
