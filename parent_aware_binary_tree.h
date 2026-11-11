@@ -29,14 +29,8 @@ namespace Yc
 {
     template<class T, class Alloc>
     class parent_aware_binary_tree;
-    template<class T, class Compare, class Alloc>
-    class rb_set;
     namespace details
     {
-        // 保留旧的内部名字；新的节点钩子由侵入式层提供。
-        struct parent_aware_binary_tree_empty_placeholder
-        {
-        };
         template<class T, class vptr>
         struct parent_aware_binary_tree_node
             : intrusive_parent_aware_binary_tree_node_base<vptr>
@@ -169,11 +163,6 @@ namespace Yc
             {
                 return e_;
             }
-            parent_aware_binary_tree_edge_const_proxy(
-                parent_aware_binary_tree_node_const_proxy<T, vptr> p,
-                bool left_child)noexcept;
-            template<class T1, class C1, class A1>
-            friend class Yc::rb_set;
         public:
             parent_aware_binary_tree_edge_const_proxy() = default;
             parent_aware_binary_tree_edge_const_proxy(
@@ -181,6 +170,9 @@ namespace Yc
                 : e_{ p.intrusive() }
             {
             }
+            parent_aware_binary_tree_edge_const_proxy(
+                parent_aware_binary_tree_node_const_proxy<T, vptr> p,
+                bool left_child)noexcept;
             bool valid()const noexcept
             {
                 return e_.valid();

@@ -169,7 +169,7 @@
 | `value_type` | `T` | 四个代理一律是 `T`（与 const 迭代器约定一致，不带 const） |
 | `reference` | `T&` / `const T&` | const 性由它表达 |
 
-构造函数（`public`）：默认；拷贝；`edge_const_proxy` 可由 `edge_proxy` 隐式构造（共享槽位）。接收侵入式代理的构造函数是私有实现细节，不是公开接口。
+构造函数（`public`）：默认；拷贝；`edge_const_proxy` 可由 `edge_proxy` 隐式构造（共享槽位）；`parent_aware` 的 `edge_const_proxy` 还可由 `(node_const_proxy parent, bool left_child)` 构造。接收侵入式代理的构造函数是私有实现细节，不是公开接口。
 
 ### `node_proxy` / `node_const_proxy`
 

@@ -8,6 +8,19 @@
 
 这种代理对象会在相应的 _树位置_ 失效时失效，这种失效规则更加复杂。长期保有这种代理并且期间树的结构有变动时可能会导致令人困惑的结果。但是各种树操作依赖这种代理对象。如果希望得到更稳定的元素代理，请转换成 [`node_proxy`](../node_proxy/node_proxy.md) 或 [`node_const_proxy`](../node_proxy/node_proxy.md) 。
 
+## 构造函数
+
+```C++
+proxy()noexcept;
+```
+
+```C++
+edge_const_proxy(edge_proxy p)noexcept;
+```
+
+- 默认构造得到无效边；
+- `edge_const_proxy` 可由 `edge_proxy` 隐式构造，二者共享槽位。
+
 ## 成员类型
 
 |成员类型|定义|
