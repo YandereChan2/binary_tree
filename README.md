@@ -1,43 +1,81 @@
-非侵入式的RAII风格的泛型二叉树实现，旨在通过合理的封装实现二叉树子树操作无需内存管理，且不泄露。
+非侵入式、RAII 风格的泛型二叉树实现。外部只通过 `edge_proxy` / `node_proxy` 及其 const 版本操作树；节点内存和 `T` 的构造/析构由非侵入式容器管理。
 
 # 目标
 
-- 和C++标准库保持风格一致
+- 和 C++ 标准库保持风格一致
 - 零开销原则
 - 支持分配器语义
-- head-only
+- header-only
 
 # 非目标
 
-- 这不是一个序列容器库，因此不提供迭代器功能，不假定遍历顺序
-- 这不是平衡树或者二叉搜索树的公共基座，是普通的二叉树操作库
-- 当前要求C++版本是C++23，可能考虑前移到C++20，但是不会进一步向前兼容。
+- 这不是序列容器库，不提供迭代器，也不承诺遍历顺序
+- 这不是平衡树或二叉搜索树的公共基座，而是普通二叉树操作库
+- 当前要求 C++23
 
 # 主要代码架构
 
-主要发布件为`binary_tree.h`和`parent_aware_binary_tree.h`，这两个头文件依赖`union_data.h`，将文件直接放在头文件目录即可使用，无需配置构建选项。两个库对应设施的文档可以在binary_tree_readme和parent_aware_binary_tree_readme目录下查阅。
+结构分成两层：
 
-另外，为了验证二叉树库的封装能力，本仓库实现了基于红黑树、AVL、SBT、FHQ treap四种平衡树搭建的旨在提供和`std::set`同样接口的类模板作为POC项目。如果有兴趣继续完善或者进行测试可以参考下面的包含关系进行引入。
+- `intrusive_binary_tree.h`：侵入式二叉树，只维护链接和结构操作，不拥有节点、不分配内存；公开接口只有边代理和节点代理。
+- `binary_tree.h` / `parent_aware_binary_tree.h`：非侵入式适配器，内部持有一棵侵入式树，负责节点分配、`T` 的构造/析构、拷贝/移动和分配器传播。
 
-`rb_set.h`,`avl_set.h`,`sbt_set.h`,`fhq_treap_set.h`为最终头文件，也是include的目标，它们依赖三叉链法二叉树基座库`parent_aware_binary_tree.h`,公共迭代器实现`set_common.h`以及分配器元信息注入机制`cookie_allocator.h`。这些头文件都是自包含的。
+非侵入式适配器只暴露自己的代理，不把侵入式代理作为公开接口。四类代理分别是：
+
+- `edge_proxy` / `edge_const_proxy`
+- `node_proxy` / `node_const_proxy`
+
+非侵入式树提供 `root` / `croot`、`nroot` / `cnroot`、`parent_of_nroot` / `parent_of_cnroot`，以及 `cut`、`splice`、`emplace`、`insert`、`erase`、`clear`、旋转、`swap_node`、`for_each` 和 `recur_and_write`。
+
+主要发布件：
+
+- `binary_tree.h`
+- `parent_aware_binary_tree.h`
+- `intrusive_binary_tree.h`
+- `union_data.h`
+
+把文件直接放在头文件目录即可使用，无需配置构建选项。文档分别在 `binary_tree_readme`、`parent_aware_binary_tree_readme` 和 `intrusive_binary_tree_readme` 目录下。
+
+为了验证二叉树库的封装能力，本仓库还实现了基于红黑树、AVL、WAVL、LLRB、SBT、FHQ treap 等平衡树搭建的、接口接近 `std::set` 的类模板：
+
+- `rb_set.h`
+- `avl_set.h`
+- `wavl_set.h`
+- `llrb_set.h`
+- `sbt_set.h`
+- `fhq_treap_set.h`
+
+这些 POC 头文件依赖 `parent_aware_binary_tree.h`、`set_common.h` 和 `cookie_allocator.h`，且都是自包含的。
+
+# 测试与构建
+
+CMake 提供：
+
+- `test_runner`：GoogleTest 单元测试
+- `test_intrusive_binary_tree`：侵入式二叉树独立测试
+
+MSVC 下为这些目标启用 `/utf-8`；可在构建目录运行 `ctest`。
 
 # 性能
 
-可以自行运行benchmark_perf.cpp试一试，用以测试使用parent_aware_binary_tree搭建的红黑树的性能。
+可以运行 `benchmark_perf.cpp` 对比 `Yc::rb_set` 与 `std::set`。`Ratio = std::set 时间 / rb_set 时间`，大于 1 表示 `rb_set` 更快。
 
-开发者本机跑出来的结果如下，其中比率是耗时比率，数字越大说明自实现相对std::set比性能越好。
+当前测试条件：
 
-```
-N=500,000 × 50 轮，双编译器对比：
+- MSVC 14.44 / GCC 16.1，`-O2`
+- `N = 500,000`
+- 50 轮平均
 
-测试	            MSVC 比率	    MinGW 比率	    MSVC rb	    MinGW rb
-insert_random	    0.93x	        0.92x	        382.6ms	    262.5ms
-insert_sorted	    0.74x	        1.12x	        70.8ms	    39.8ms
-find	            0.98x	        0.98x	        368.3ms	    377.1ms
-erase	            1.22x	        1.01x	        174.9ms	    182.7ms
-iteration	        0.69x	        0.98x	        70.9ms	    71.0ms
-mixed	            0.94x	        0.90x	        155.8ms	    149.0ms
-```
+| 测试 | MSVC Ratio | GCC Ratio | MSVC rb(ms) | GCC rb(ms) |
+|-:|-:|-:|-:|-:|
+| insert_random | 0.94x | 0.82x | 206.9 | 213.7 |
+| insert_sorted | 0.85x | 1.00x | 51.5 | 42.2 |
+| find | 0.95x | 0.96x | 245.8 | 292.6 |
+| erase | 1.26x | 1.04x | 124.6 | 133.4 |
+| iteration | 0.68x | 0.96x | 59.1 | 60.6 |
+| mixed | 1.03x | 0.92x | 106.3 | 107.4 |
+
+性能会随编译器、标准库实现和数据分布变化，以上仅是本机实测结果。
 
 # 快速开始
 
