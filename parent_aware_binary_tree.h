@@ -1,11 +1,12 @@
 // 带父节点指针的二叉树库
-// 核心抽象：
-//   - edge_proxy / edge_const_proxy：代表父节点到子节点的"指针槽位"，
-//     同时支持导航（go_left/go_right/go_up）和修改（emplace/erase 等）
-//   - node_proxy / node_const_proxy：直接代表树节点
-//   - 内部使用一个哨兵根节点（root_node，只使用 left 指向实际树根），
-//     使根节点也有 parent，统一处理边界情况
-// 支持：分配器感知、复制/移动语义、递归构造、旋转、切割/拼接等操作
+//
+// 分层：
+//   - intrusive_binary_tree.h 提供侵入式父指针二叉树：节点钩子、只含 left
+//     的哨兵、parent 链维护、旋转、交换、切割/拼接、拆树等纯结构操作；
+//     它不接触 T，也不分配内存，公开接口只使用 edge_proxy / node_proxy。
+//   - 本文件是"拥有型适配器"：parent_aware_binary_tree 内部持有一棵侵入式
+//     父指针树，自己负责节点内存的分配、T 的构造/析构与回收；公开 proxy
+//     在侵入式 proxy 外再包一层，提供 T 的解引用。
 #pragma once
 
 // MSVC 不支持标准 [[no_unique_address]]，要用它的 [[msvc::no_unique_address]]
@@ -21,6 +22,7 @@
 #include <type_traits>
 #include <functional>
 #include <utility>
+#include "intrusive_binary_tree.h"
 #include "union_data.h"
 
 namespace Yc
@@ -29,190 +31,118 @@ namespace Yc
     class parent_aware_binary_tree;
     namespace details
     {
-        // ===================================================================
-        // 节点层次结构（Nested Base Classes）：
-        //   parent_aware_binary_tree_empty_placeholder       （空类型，用于类型擦除）
-        //   └─ parent_aware_binary_tree_node_base1<Alloc>    （left 指针）
-        //       └─ parent_aware_binary_tree_node_base<Alloc> （right、parent 指针）
-        //           └─ parent_aware_binary_tree_node<T,Alloc>（存储用户数据 data_t<T>）
-        //
-        // 设计意图：通过继承链分离指针成员，使得 edge_proxy 可以安全地进行
-        //          指针到成员的偏移转换，同时利用空基类优化减少内存开销。
-        //          分配器绑定在最顶层占位类型，统一管理所有节点的内存。
-        // ===================================================================
-
-        // 最底层基类：空类型占位符，用于统一 allocator rebound 的目标类型
+        // 保留旧的内部名字；新的节点钩子由侵入式层提供。
         struct parent_aware_binary_tree_empty_placeholder
         {
         };
-        // 节点基类第一层：持有 left 子节点指针
-        template<class Alloc>
-        struct parent_aware_binary_tree_node_base1: parent_aware_binary_tree_empty_placeholder
-        {
-            static_assert(std::is_same_v<typename std::allocator_traits<Alloc>::value_type,
-                parent_aware_binary_tree_empty_placeholder>);
-            using pointer = std::allocator_traits<Alloc>::pointer;
-            pointer left{};
-        };
-
-        // 节点基类第二层：新增 right 子节点指针和 parent 父节点指针
-        template<class Alloc>
-        struct parent_aware_binary_tree_node_base : parent_aware_binary_tree_node_base1<Alloc>
-        {
-            using pointer = std::allocator_traits<Alloc>::pointer;
-            pointer right{};
-            pointer parent{};
-        };
-
-        // 完整节点：继承全部指针并附加用户数据
-        template<class T, class Alloc>
-        struct parent_aware_binary_tree_node : parent_aware_binary_tree_node_base<Alloc>
+        template<class T, class vptr>
+        struct parent_aware_binary_tree_node
+            : intrusive_parent_aware_binary_tree_node_base<vptr>
         {
             data_t<T> data;
         };
-        
-        template<class T, class Alloc>
+
+        template<class T, class vptr>
         class parent_aware_binary_tree_edge_const_proxy;
-        template<class T, class Alloc>
+        template<class T, class vptr>
         class parent_aware_binary_tree_node_proxy;
-        template<class T, class Alloc>
+        template<class T, class vptr>
         class parent_aware_binary_tree_node_const_proxy;
 
         // ===================================================================
-        // edge_proxy：代表父节点到子节点之间的"边"（指针槽位）
-        //
-        // 核心思想：二叉树中每个非根节点都通过父节点的一个指针成员
-        // （left 或 right）被引用。edge_proxy 封装了这个指针槽位，
-        // 由 parent（父节点指针）和 ch（指向 left/right 的成员指针）组成。
-        //
-        // 通过这个抽象，所有树操作（插入、删除、旋转等）都统一在"边"的
-        // 层面进行，无需区分根节点和普通节点——哨兵 root_node 的存在使
-        // 树的根也有一条对应的边。
-        //
-        // 命名约定：
-        //   go_* ：原地修改自身，返回 *this（链式调用）
-        //   get_*：返回新的 proxy 对象，不修改自身
+        // edge_proxy：包装侵入式父指针边 proxy，并补上 T 的解引用。
         // ===================================================================
-        template<class T, class Alloc>
+        template<class T, class vptr>
         class parent_aware_binary_tree_edge_proxy
         {
-            using pointer_to_pointer = std::allocator_traits<Alloc>::template rebind_traits<typename std::allocator_traits<Alloc>::pointer>::pointer;
-            using pointer = std::allocator_traits<Alloc>::pointer;
-            // l, r：分别指向节点基类中 left, right 成员的成员指针常量
-            static constexpr inline pointer parent_aware_binary_tree_node_base1<Alloc>::*
-                l = &parent_aware_binary_tree_node_base1<Alloc>::left;
-            static constexpr inline pointer parent_aware_binary_tree_node_base1<Alloc>::*
-                r = (pointer parent_aware_binary_tree_node_base1<Alloc>::*)
-                &parent_aware_binary_tree_node_base<Alloc>::right;
-            // ch：当前边引用的是左子还是右子（指向 l 或 r）
-            pointer parent_aware_binary_tree_node_base1<Alloc>::* ch = l;
-            // parent：父节点指针
-            pointer parent{};
-            // 获取子节点指针的引用（即指针槽位本身）
-            pointer& child()const noexcept
-            {
-                return static_cast<parent_aware_binary_tree_node_base1<Alloc>&>(*parent).*ch;
-            }
+            using intrusive_edge = intrusive_parent_aware_binary_tree_edge_proxy<vptr>;
+            using node_type = parent_aware_binary_tree_node<T, vptr>;
+
+            intrusive_edge e_{};
         public:
             parent_aware_binary_tree_edge_proxy() = default;
-            parent_aware_binary_tree_edge_proxy(const parent_aware_binary_tree_edge_proxy&) = default;
-            // 构造一条从 parent 出发、方向为 left_flag 的边
-            parent_aware_binary_tree_edge_proxy(pointer ptr, bool left_flag)noexcept:parent{ptr}, ch{left_flag ? l : r}
-            { }
-            parent_aware_binary_tree_edge_proxy& operator=(const parent_aware_binary_tree_edge_proxy&) = default;
-            // 边是否有效（parent 非空）
+            parent_aware_binary_tree_edge_proxy(intrusive_edge e)noexcept : e_{ e }
+            {
+            }
+            intrusive_edge intrusive()const noexcept
+            {
+                return e_;
+            }
             bool valid()const noexcept
             {
-                return (parent != nullptr);
+                return e_.valid();
             }
-            // 边所指的子节点是否为空
             bool null()const noexcept
             {
-                return (child() == nullptr);
+                return e_.null();
             }
-            // 边有效且子节点非空
             explicit operator bool()const noexcept
             {
-                return valid() && (!null());
+                return static_cast<bool>(e_);
             }
-            // 移动到左子节点
             parent_aware_binary_tree_edge_proxy& go_left()noexcept
             {
-                parent = child();
-                ch = l;
+                e_.go_left();
                 return *this;
             }
-            // 移动到右子节点
             parent_aware_binary_tree_edge_proxy& go_right()noexcept
             {
-                parent = child();
-                ch = r;
+                e_.go_right();
                 return *this;
             }
-            // 移动到父节点
             parent_aware_binary_tree_edge_proxy& go_up()noexcept
             {
-                pointer parent_of_parent = static_cast<parent_aware_binary_tree_node_base<Alloc>&>(*parent).parent;
-                ch = static_cast<parent_aware_binary_tree_node_base1<Alloc>&>(*parent_of_parent).left == parent ? l : r;
-                parent = parent_of_parent;
+                e_.go_up();
                 return *this;
             }
-            // 解引用：获取子节点中存储的值的引用
             T& operator*()const noexcept
             {
-                return static_cast<parent_aware_binary_tree_node<T, Alloc>&>(*child()).data.data;
+                return static_cast<node_type&>(*e_).data.data;
             }
             T* operator->()const noexcept
             {
-                return std::addressof(static_cast<parent_aware_binary_tree_node<T, Alloc>&>(*child()).data.data);
+                return std::addressof(static_cast<node_type&>(*e_).data.data);
             }
-            // 获取左子边（不修改自身）
             parent_aware_binary_tree_edge_proxy get_left()const noexcept
             {
-                return { child(), true };
+                return { e_.get_left() };
             }
-            // 获取右子边（不修改自身）
             parent_aware_binary_tree_edge_proxy get_right()const noexcept
             {
-                return { child(), false };
+                return { e_.get_right() };
             }
-            // 获取父边（不修改自身）
             parent_aware_binary_tree_edge_proxy get_parent()const noexcept
             {
-                pointer parent_of_parent = static_cast<parent_aware_binary_tree_node_base<Alloc>&>(*parent).parent;
-                return { parent_of_parent, static_cast<parent_aware_binary_tree_node_base1<Alloc>&>(*parent_of_parent).left == parent };
+                return { e_.get_parent() };
             }
-            // 获取左右子边
-            std::pair<parent_aware_binary_tree_edge_proxy, parent_aware_binary_tree_edge_proxy> get_children()const noexcept
+            std::pair<parent_aware_binary_tree_edge_proxy,
+                parent_aware_binary_tree_edge_proxy> get_children()const noexcept
             {
                 return { get_left(), get_right() };
             }
-            // 比较两条边是否指向同一个指针槽位（而非比较值）
-            friend bool operator==(parent_aware_binary_tree_edge_proxy l, parent_aware_binary_tree_edge_proxy r)noexcept = default;
+            friend bool operator==(parent_aware_binary_tree_edge_proxy,
+                parent_aware_binary_tree_edge_proxy)noexcept = default;
             friend struct std::hash<parent_aware_binary_tree_edge_proxy>;
-            friend class parent_aware_binary_tree_edge_const_proxy<T, Alloc>;
+            friend class parent_aware_binary_tree_edge_const_proxy<T, vptr>;
+            friend class parent_aware_binary_tree_node_proxy<T, vptr>;
             template<class T1, class Alloc1>
             friend class Yc::parent_aware_binary_tree;
-            friend class parent_aware_binary_tree_node_proxy<T, Alloc>;
-            // 与迭代器约定一致：const 性由 reference 表达，value_type 不带 const
             using value_type = T;
             using reference = T&;
         };
     }
 }
 
-// std::hash 特化：基于子节点槽位的地址进行哈希。
-// 直接委托给缀饰指针自身的 std::hash（与 node 代理一致），不做 addressof 转换，
-// 因此要求 std::hash<pointer> 可用。
-template<class T, class Alloc>
-struct std::hash<Yc::details::parent_aware_binary_tree_edge_proxy<T, Alloc>>
+template<class T, class vptr>
+struct std::hash<Yc::details::parent_aware_binary_tree_edge_proxy<T, vptr>>
 {
-    size_t operator()(const Yc::details::parent_aware_binary_tree_edge_proxy<T, Alloc>& para)const noexcept
+    size_t operator()(const Yc::details::parent_aware_binary_tree_edge_proxy<T, vptr>& p)const noexcept
     {
-        if (!para.valid())
+        if (!p.valid())
+        {
             return 0;
-        using slot_pointer = std::remove_reference_t<decltype(para.child())>*;
-        return std::hash<slot_pointer>{}(std::addressof(para.child()));
+        }
+        return std::hash<Yc::intrusive_parent_aware_binary_tree_edge_proxy<vptr>>{}(p.intrusive());
     }
 };
 
@@ -221,119 +151,101 @@ namespace Yc
     namespace details
     {
         // edge_const_proxy：edge_proxy 的常量版本
-        // 与 edge_proxy 结构相同，但解引用返回 const T&，
-        // 且可从 edge_proxy 隐式转换而来
-        template<class T, class Alloc>
+        template<class T, class vptr>
         class parent_aware_binary_tree_edge_const_proxy
         {
-            using pointer_to_pointer = std::allocator_traits<Alloc>::template rebind_traits<typename std::allocator_traits<Alloc>::pointer>::pointer;
-            using pointer = std::allocator_traits<Alloc>::pointer;
+            using intrusive_edge = intrusive_parent_aware_binary_tree_edge_proxy<vptr>;
+            using node_type = parent_aware_binary_tree_node<T, vptr>;
 
-            static constexpr inline pointer parent_aware_binary_tree_node_base1<Alloc>::*
-                l = &parent_aware_binary_tree_node_base1<Alloc>::left;
-            static constexpr inline pointer parent_aware_binary_tree_node_base1<Alloc>::*
-                r = (pointer parent_aware_binary_tree_node_base1<Alloc>::*)
-                & parent_aware_binary_tree_node_base<Alloc>::right;
-            pointer parent_aware_binary_tree_node_base1<Alloc>::* ch = l;
-            pointer parent{};
-            pointer& child()const noexcept
-            {
-                return static_cast<parent_aware_binary_tree_node_base1<Alloc>&>(*parent).* ch;
-            }
+            intrusive_edge e_{};
         public:
             parent_aware_binary_tree_edge_const_proxy() = default;
-            parent_aware_binary_tree_edge_const_proxy(const parent_aware_binary_tree_edge_const_proxy&) = default;
-            parent_aware_binary_tree_edge_const_proxy(pointer ptr, bool left_flag)noexcept :parent{ ptr }, ch{ left_flag ? l : r }
+            parent_aware_binary_tree_edge_const_proxy(intrusive_edge e)noexcept : e_{ e }
             {
             }
-            parent_aware_binary_tree_edge_const_proxy(parent_aware_binary_tree_edge_proxy<T, Alloc> p)noexcept :
-                parent_aware_binary_tree_edge_const_proxy{p.parent, p.ch == p.l}
-            {}
-            // 注意：这里不再提供 (node_const_proxy) 构造函数。由节点重建"指向该节点的边"
-            // 统一走 node_const_proxy::operator edge_const_proxy()（它需要节点自己的 parent
-            // 指针）；若两头都写，隐式转换会二义，且构造函数体里再构造 edge_const_proxy
-            // 会被解析成委托给自己。
-            parent_aware_binary_tree_edge_const_proxy& operator=(const parent_aware_binary_tree_edge_const_proxy&) = default;
+            parent_aware_binary_tree_edge_const_proxy(
+                parent_aware_binary_tree_edge_proxy<T, vptr> p)noexcept
+                : e_{ p.intrusive() }
+            {
+            }
+            intrusive_edge intrusive()const noexcept
+            {
+                return e_;
+            }
             bool valid()const noexcept
             {
-                return bool( parent );
+                return e_.valid();
             }
             bool null()const noexcept
             {
-                return !bool( child() );
+                return e_.null();
             }
             explicit operator bool()const noexcept
             {
-                return valid() && (!null());
+                return static_cast<bool>(e_);
             }
             parent_aware_binary_tree_edge_const_proxy& go_left()noexcept
             {
-                parent = child();
-                ch = l;
+                e_.go_left();
                 return *this;
             }
             parent_aware_binary_tree_edge_const_proxy& go_right()noexcept
             {
-                parent = child();
-                ch = r;
+                e_.go_right();
                 return *this;
             }
             parent_aware_binary_tree_edge_const_proxy& go_up()noexcept
             {
-                pointer parent_of_parent = static_cast<parent_aware_binary_tree_node_base<Alloc>&>(*parent).parent;
-                ch = static_cast<parent_aware_binary_tree_node_base1<Alloc>&>(*parent_of_parent).left == parent ? l : r;
-                parent = parent_of_parent;
+                e_.go_up();
                 return *this;
             }
             const T& operator*()const noexcept
             {
-                return static_cast<parent_aware_binary_tree_node<T, Alloc>&>(*child()).data.data;
+                return static_cast<node_type&>(*e_).data.data;
             }
             const T* operator->()const noexcept
             {
-                return std::addressof(static_cast<parent_aware_binary_tree_node<T, Alloc>&>(*child()).data.data);
+                return std::addressof(static_cast<node_type&>(*e_).data.data);
             }
             parent_aware_binary_tree_edge_const_proxy get_left()const noexcept
             {
-                return { child(), true };
+                return { e_.get_left() };
             }
             parent_aware_binary_tree_edge_const_proxy get_right()const noexcept
             {
-                return { child(), false };
+                return { e_.get_right() };
             }
             parent_aware_binary_tree_edge_const_proxy get_parent()const noexcept
             {
-                pointer parent_of_parent = static_cast<parent_aware_binary_tree_node_base<Alloc>&>(*parent).parent;
-                return { parent_of_parent, static_cast<parent_aware_binary_tree_node_base1<Alloc>&>(*parent_of_parent).left == parent };
+                return { e_.get_parent() };
             }
-            std::pair<parent_aware_binary_tree_edge_const_proxy, parent_aware_binary_tree_edge_const_proxy> get_children()const noexcept
+            std::pair<parent_aware_binary_tree_edge_const_proxy,
+                parent_aware_binary_tree_edge_const_proxy> get_children()const noexcept
             {
                 return { get_left(), get_right() };
             }
-            friend bool operator==(parent_aware_binary_tree_edge_const_proxy, parent_aware_binary_tree_edge_const_proxy)noexcept = default;
+            friend bool operator==(parent_aware_binary_tree_edge_const_proxy,
+                parent_aware_binary_tree_edge_const_proxy)noexcept = default;
             friend struct std::hash<parent_aware_binary_tree_edge_const_proxy>;
+            friend class parent_aware_binary_tree_node_const_proxy<T, vptr>;
             template<class T1, class Alloc1>
             friend class Yc::parent_aware_binary_tree;
-            friend class parent_aware_binary_tree_node_const_proxy<T, Alloc>;
-            // 与迭代器约定一致：const 性由 reference 表达，value_type 不带 const
             using value_type = T;
             using reference = const T&;
         };
     }
 }
 
-// std::hash 特化：基于子节点槽位的地址进行哈希。
-// 直接委托给缀饰指针自身的 std::hash（与 node 代理一致），不做 addressof 转换，
-// 因此要求 std::hash<pointer> 可用。
-template<class T, class Alloc>
-struct std::hash<Yc::details::parent_aware_binary_tree_edge_const_proxy<T, Alloc>>
+template<class T, class vptr>
+struct std::hash<Yc::details::parent_aware_binary_tree_edge_const_proxy<T, vptr>>
 {
-    size_t operator()(const Yc::details::parent_aware_binary_tree_edge_const_proxy<T, Alloc>& para)const noexcept
+    size_t operator()(const Yc::details::parent_aware_binary_tree_edge_const_proxy<T, vptr>& p)const noexcept
     {
-        if (!para.valid())
+        if (!p.valid())
+        {
             return 0;
-        using slot_pointer = std::remove_reference_t<decltype(para.child())>*;
-        return std::hash<slot_pointer>{}(std::addressof(para.child()));
+        }
+        return std::hash<Yc::intrusive_parent_aware_binary_tree_edge_proxy<vptr>>{}(p.intrusive());
     }
 };
 
@@ -341,107 +253,104 @@ namespace Yc
 {
     namespace details
     {
-        // ===================================================================
-        // node_proxy：直接代表树节点
-        // 与 edge_proxy 不同，node_proxy 直接持有节点指针（而非指向指针的指针），
-        // 支持 go_left/go_right/go_up 导航和值访问。
-        // 可通过转换运算符转为 edge_proxy（利用 parent 指针重建边）。
-        // ===================================================================
-        template<class T, class Alloc>
+        // node_proxy：包装侵入式节点 proxy，并补上 T 的解引用。
+        template<class T, class vptr>
         class parent_aware_binary_tree_node_proxy
         {
-            using pointer_to_pointer = std::allocator_traits<Alloc>::template rebind_traits<typename std::allocator_traits<Alloc>::pointer>::pointer;
-            using pointer = std::allocator_traits<Alloc>::pointer;
+            using intrusive_node = intrusive_parent_aware_binary_tree_node_proxy<vptr>;
+            using node_type = parent_aware_binary_tree_node<T, vptr>;
 
-            pointer node{};
+            intrusive_node n_{};
         public:
             parent_aware_binary_tree_node_proxy() = default;
-            parent_aware_binary_tree_node_proxy(const parent_aware_binary_tree_node_proxy&) = default;
-            parent_aware_binary_tree_node_proxy(pointer node)noexcept:node{node}
+            parent_aware_binary_tree_node_proxy(intrusive_node n)noexcept : n_{ n }
             {
             }
-            parent_aware_binary_tree_node_proxy(parent_aware_binary_tree_edge_proxy<T, Alloc> p)noexcept :node{p.child()}
+            parent_aware_binary_tree_node_proxy(
+                parent_aware_binary_tree_edge_proxy<T, vptr> p)noexcept
+                : n_{ p.intrusive().get_node() }
             {
             }
-            parent_aware_binary_tree_node_proxy& operator=(const parent_aware_binary_tree_node_proxy&) = default;
+            intrusive_node intrusive()const noexcept
+            {
+                return n_;
+            }
             bool null()const noexcept
             {
-                return node == nullptr;
+                return n_.null();
             }
             explicit operator bool()const noexcept
             {
-                return !null();
+                return static_cast<bool>(n_);
+            }
+            T& operator*()const noexcept
+            {
+                return static_cast<node_type&>(*n_).data.data;
+            }
+            T* operator->()const noexcept
+            {
+                return std::addressof(static_cast<node_type&>(*n_).data.data);
             }
             parent_aware_binary_tree_node_proxy& go_left()noexcept
             {
-                node = static_cast<parent_aware_binary_tree_node_base1<Alloc>&>(*node).left;
+                n_.go_left();
                 return *this;
             }
             parent_aware_binary_tree_node_proxy& go_right()noexcept
             {
-                node = static_cast<parent_aware_binary_tree_node_base<Alloc>&>(*node).right;
+                n_.go_right();
                 return *this;
             }
             parent_aware_binary_tree_node_proxy& go_up()noexcept
             {
-                node = static_cast<parent_aware_binary_tree_node_base<Alloc>&>(*node).parent;
+                n_.go_up();
                 return *this;
-            }
-            T& operator*()const noexcept
-            {
-                return static_cast<parent_aware_binary_tree_node<T, Alloc>&>(*node).data.data;
-            }
-            T* operator->()const noexcept
-            {
-                return std::addressof(static_cast<parent_aware_binary_tree_node<T, Alloc>&>(*node).data.data);
             }
             parent_aware_binary_tree_node_proxy get_left()const noexcept
             {
-                return { static_cast<parent_aware_binary_tree_node_base1<Alloc>&>(*node).left };
+                return { n_.get_left() };
             }
             parent_aware_binary_tree_node_proxy get_right()const noexcept
             {
-                return { static_cast<parent_aware_binary_tree_node_base<Alloc>&>(*node).right };
+                return { n_.get_right() };
             }
             parent_aware_binary_tree_node_proxy get_parent()const noexcept
             {
-                return { static_cast<parent_aware_binary_tree_node_base<Alloc>&>(*node).parent };
+                return { n_.get_parent() };
             }
-            std::pair<parent_aware_binary_tree_edge_proxy<T, Alloc>, parent_aware_binary_tree_edge_proxy<T, Alloc>> get_children()const noexcept
+            std::pair<parent_aware_binary_tree_edge_proxy<T, vptr>,
+                parent_aware_binary_tree_edge_proxy<T, vptr>> get_children()const noexcept
             {
-                return { {node, true}, {node, false} };
+                auto [l, r] = n_.get_children();
+                return { parent_aware_binary_tree_edge_proxy<T, vptr>{l},
+                         parent_aware_binary_tree_edge_proxy<T, vptr>{r} };
             }
-            operator parent_aware_binary_tree_edge_proxy<T, Alloc>()const noexcept
+            operator parent_aware_binary_tree_edge_proxy<T, vptr>()const noexcept
             {
-                pointer parent = static_cast<parent_aware_binary_tree_node_base<Alloc>&>(*node).parent;
-                if (static_cast<parent_aware_binary_tree_node_base1<Alloc>&>(*parent).left == node)
-                {
-                    return { parent, true };
-                }
-                else
-                {
-                    return { parent, false };
-                }
+                return { n_.get_edge() };
             }
-            friend bool operator==(parent_aware_binary_tree_node_proxy l, parent_aware_binary_tree_node_proxy r)noexcept = default;
+            friend bool operator==(parent_aware_binary_tree_node_proxy,
+                parent_aware_binary_tree_node_proxy)noexcept = default;
             friend struct std::hash<parent_aware_binary_tree_node_proxy>;
-            friend class parent_aware_binary_tree_node_const_proxy<T, Alloc>;
-            // 与迭代器约定一致：const 性由 reference 表达，value_type 不带 const
-            using value_type = T;
-            using reference = T&;
+            friend class parent_aware_binary_tree_node_const_proxy<T, vptr>;
             template<class T1, class Alloc1>
             friend class Yc::parent_aware_binary_tree;
+            using value_type = T;
+            using reference = T&;
         };
     }
 }
 
-// std::hash 特化：基于所指代节点的地址进行哈希
-template<class T, class Alloc>
-struct std::hash<Yc::details::parent_aware_binary_tree_node_proxy<T, Alloc>>
+template<class T, class vptr>
+struct std::hash<Yc::details::parent_aware_binary_tree_node_proxy<T, vptr>>
 {
-    size_t operator()(const Yc::details::parent_aware_binary_tree_node_proxy<T, Alloc>& para)const noexcept
+    size_t operator()(const Yc::details::parent_aware_binary_tree_node_proxy<T, vptr>& p)const noexcept
     {
-        return std::hash<decltype(para.node)>{}(para.node);
+        if (!p)
+        {
+            return 0;
+        }
+        return std::hash<Yc::intrusive_parent_aware_binary_tree_node_proxy<vptr>>{}(p.intrusive());
     }
 };
 
@@ -450,106 +359,107 @@ namespace Yc
     namespace details
     {
         // node_const_proxy：node_proxy 的常量版本
-        // 解引用返回 const T&，可从 edge_const_proxy 转换而来
-        template<class T, class Alloc>
+        template<class T, class vptr>
         class parent_aware_binary_tree_node_const_proxy
         {
-            using pointer_to_pointer = std::allocator_traits<Alloc>::template rebind_traits<typename std::allocator_traits<Alloc>::pointer>::pointer;
-            using pointer = std::allocator_traits<Alloc>::pointer;
+            using intrusive_node = intrusive_parent_aware_binary_tree_node_proxy<vptr>;
+            using node_type = parent_aware_binary_tree_node<T, vptr>;
 
-            pointer node{};
+            intrusive_node n_{};
         public:
             parent_aware_binary_tree_node_const_proxy() = default;
-            parent_aware_binary_tree_node_const_proxy(const parent_aware_binary_tree_node_const_proxy&) = default;
-            parent_aware_binary_tree_node_const_proxy(pointer node)noexcept :node{ node }
-            {}
-            // 由 node_proxy 直接转换（不经 edge_proxy：哨兵根节点没有父节点，
-            // 经边转换需要解引用 parent 会出错）
-            parent_aware_binary_tree_node_const_proxy(parent_aware_binary_tree_node_proxy<T, Alloc> p)noexcept
-                :node{ p.node }
-            {}
-            parent_aware_binary_tree_node_const_proxy(parent_aware_binary_tree_edge_const_proxy<T, Alloc> p)noexcept :node{ p.child() }
-            {}
-            parent_aware_binary_tree_node_const_proxy& operator=(const parent_aware_binary_tree_node_const_proxy&) = default;
+            parent_aware_binary_tree_node_const_proxy(intrusive_node n)noexcept : n_{ n }
+            {
+            }
+            parent_aware_binary_tree_node_const_proxy(
+                parent_aware_binary_tree_node_proxy<T, vptr> p)noexcept
+                : n_{ p.intrusive() }
+            {
+            }
+            parent_aware_binary_tree_node_const_proxy(
+                parent_aware_binary_tree_edge_const_proxy<T, vptr> p)noexcept
+                : n_{ p.intrusive().get_node() }
+            {
+            }
+            intrusive_node intrusive()const noexcept
+            {
+                return n_;
+            }
             bool null()const noexcept
             {
-                return node == nullptr;
+                return n_.null();
             }
             explicit operator bool()const noexcept
             {
-                return !null();
+                return static_cast<bool>(n_);
+            }
+            const T& operator*()const noexcept
+            {
+                return static_cast<node_type&>(*n_).data.data;
+            }
+            const T* operator->()const noexcept
+            {
+                return std::addressof(static_cast<node_type&>(*n_).data.data);
             }
             parent_aware_binary_tree_node_const_proxy& go_left()noexcept
             {
-                node = static_cast<parent_aware_binary_tree_node_base1<Alloc>&>(*node).left;
+                n_.go_left();
                 return *this;
             }
             parent_aware_binary_tree_node_const_proxy& go_right()noexcept
             {
-                node = static_cast<parent_aware_binary_tree_node_base<Alloc>&>(*node).right;
+                n_.go_right();
                 return *this;
             }
             parent_aware_binary_tree_node_const_proxy& go_up()noexcept
             {
-                node = static_cast<parent_aware_binary_tree_node_base<Alloc>&>(*node).parent;
+                n_.go_up();
                 return *this;
-            }
-            const T& operator*()const noexcept
-            {
-                return static_cast<parent_aware_binary_tree_node<T, Alloc>&>(*node).data.data;
-            }
-            const T* operator->()const noexcept
-            {
-                return std::addressof(static_cast<parent_aware_binary_tree_node<T, Alloc>&>(*node).data.data);
             }
             parent_aware_binary_tree_node_const_proxy get_left()const noexcept
             {
-                return { static_cast<parent_aware_binary_tree_node_base1<Alloc>&>(*node).left };
+                return { n_.get_left() };
             }
             parent_aware_binary_tree_node_const_proxy get_right()const noexcept
             {
-                return { static_cast<parent_aware_binary_tree_node_base<Alloc>&>(*node).right };
+                return { n_.get_right() };
             }
             parent_aware_binary_tree_node_const_proxy get_parent()const noexcept
             {
-                return { static_cast<parent_aware_binary_tree_node_base<Alloc>&>(*node).parent };
+                return { n_.get_parent() };
             }
-            std::pair<parent_aware_binary_tree_edge_const_proxy<T, Alloc>, parent_aware_binary_tree_edge_const_proxy<T, Alloc>> get_children()const noexcept
+            std::pair<parent_aware_binary_tree_edge_const_proxy<T, vptr>,
+                parent_aware_binary_tree_edge_const_proxy<T, vptr>> get_children()const noexcept
             {
-                return { {node, true}, {node, false} };
+                auto [l, r] = n_.get_children();
+                return { parent_aware_binary_tree_edge_const_proxy<T, vptr>{l},
+                         parent_aware_binary_tree_edge_const_proxy<T, vptr>{r} };
             }
-            operator parent_aware_binary_tree_edge_const_proxy<T, Alloc>()const noexcept
+            operator parent_aware_binary_tree_edge_const_proxy<T, vptr>()const noexcept
             {
-                pointer parent = static_cast<parent_aware_binary_tree_node_base<Alloc>&>(*node).parent;
-                if (static_cast<parent_aware_binary_tree_node_base1<Alloc>&>(*parent).left == node)
-                {
-                    return { parent, true };
-                }
-                else
-                {
-                    return { parent, false };
-                }
+                return { n_.get_edge() };
             }
-            friend bool operator==(parent_aware_binary_tree_node_const_proxy l, parent_aware_binary_tree_node_const_proxy r)noexcept = default;
+            friend bool operator==(parent_aware_binary_tree_node_const_proxy,
+                parent_aware_binary_tree_node_const_proxy)noexcept = default;
             friend struct std::hash<parent_aware_binary_tree_node_const_proxy>;
-            // 供 edge_const_proxy 由节点重建边（需要读到内部的 node）
-            friend class parent_aware_binary_tree_edge_const_proxy<T, Alloc>;
-            // 与迭代器约定一致：const 性由 reference 表达，value_type 不带 const
-            using value_type = T;
-            using reference = const T&;
             template<class T1, class Alloc1>
             friend class Yc::parent_aware_binary_tree;
+            using value_type = T;
+            using reference = const T&;
         };
     }
 }
 
-// std::hash 特化：基于所指代节点的地址进行哈希
-template<class T, class Alloc>
-struct std::hash<Yc::details::parent_aware_binary_tree_node_const_proxy<T, Alloc>>
+template<class T, class vptr>
+struct std::hash<Yc::details::parent_aware_binary_tree_node_const_proxy<T, vptr>>
 {
-    size_t operator()(const Yc::details::parent_aware_binary_tree_node_const_proxy<T, Alloc>& para)const noexcept
+    size_t operator()(const Yc::details::parent_aware_binary_tree_node_const_proxy<T, vptr>& p)const noexcept
     {
-        return std::hash<decltype(para.node)>{}(para.node);
+        if (!p)
+        {
+            return 0;
+        }
+        return std::hash<Yc::intrusive_parent_aware_binary_tree_node_proxy<vptr>>{}(p.intrusive());
     }
 };
 
@@ -557,26 +467,26 @@ namespace Yc
 {
     namespace details
     {
-        // 多态 get_children 函数对象：对四种 proxy 类型统一调用 get_children()
+        // 多态 get_children 函数对象
         struct parent_aware_binary_tree_get_children_t
         {
-            template<class T, class Alloc>
-            auto operator()(parent_aware_binary_tree_edge_proxy<T, Alloc> p)const noexcept
+            template<class T, class vptr>
+            auto operator()(parent_aware_binary_tree_edge_proxy<T, vptr> p)const noexcept
             {
                 return p.get_children();
             }
-            template<class T, class Alloc>
-            auto operator()(parent_aware_binary_tree_edge_const_proxy<T, Alloc> p)const noexcept
+            template<class T, class vptr>
+            auto operator()(parent_aware_binary_tree_edge_const_proxy<T, vptr> p)const noexcept
             {
                 return p.get_children();
             }
-            template<class T, class Alloc>
-            auto operator()(parent_aware_binary_tree_node_proxy<T, Alloc> p)const noexcept
+            template<class T, class vptr>
+            auto operator()(parent_aware_binary_tree_node_proxy<T, vptr> p)const noexcept
             {
                 return p.get_children();
             }
-            template<class T, class Alloc>
-            auto operator()(parent_aware_binary_tree_node_const_proxy<T, Alloc> p)const noexcept
+            template<class T, class vptr>
+            auto operator()(parent_aware_binary_tree_node_const_proxy<T, vptr> p)const noexcept
             {
                 return p.get_children();
             }
@@ -586,131 +496,58 @@ namespace Yc
     {
         constexpr inline Yc::details::parent_aware_binary_tree_get_children_t get_children{};
     }
+
     // ===================================================================
-    // parent_aware_binary_tree：带父节点指针的二叉树容器
-    //
-    // 核心设计：
-    //   1. 使用哨兵节点 root_node 作为树的逻辑根的父亲，
-    //      这使得根节点的父指针也有效，统一了边界情况处理。
-    //   2. 所有公开操作通过 edge_proxy / edge_const_proxy 暴露，
-    //      用户不直接操作裸指针。
-    //   3. 分配器感知：支持有状态分配器，遵循 allocator_traits 约定。
-    //
-    // 主要操作：
-    //   - 导航：root(), nroot(), parent_of_nroot()
-    //   - 修改：emplace, insert, erase, cut, splice
-    //   - 旋转：left_rotate, right_rotate, checked_left_rotate, checked_right_rotate
-    //   - 交换：swap, swap_sub_tree, swap_node
-    //   - 遍历：for_each
-    //   - 递归构造：recur_and_write（支持从任意树形结构复制/构造）
+    // parent_aware_binary_tree：持有侵入式父指针树的拥有型适配器
     // ===================================================================
     template<class T, class Alloc = std::allocator<T>>
     class parent_aware_binary_tree
     {
-        // 分配器 rebind：将用户分配器 rebind 到占位类型，统一管理节点内存
-        using place_holder_allocator = std::allocator_traits<Alloc>::template
-            rebind_alloc<details::parent_aware_binary_tree_empty_placeholder>;
-        using node_pointer = std::allocator_traits<place_holder_allocator>::pointer;
-        using node_type = details::parent_aware_binary_tree_node<T, place_holder_allocator>;
+        // 结构指针的"种子"类型：普通分配器是 T*，缀饰指针分配器是 fancy<T>。
+        using vptr = typename std::allocator_traits<Alloc>::pointer;
+        using intrusive_tree_type = basic_intrusive_parent_aware_binary_tree<vptr>;
+        using node_base = intrusive_parent_aware_binary_tree_node_base<vptr>;
+        using node_type = details::parent_aware_binary_tree_node<T, vptr>;
         using node_allocator = std::allocator_traits<Alloc>::template rebind_alloc<node_type>;
+
+        // 分配器（使用 YC_NO_UNIQUE_ADDRESS 以零开销存储无状态分配器）
+        YC_NO_UNIQUE_ADDRESS Alloc alloc{};
+        // 侵入式父指针树：内部含哨兵，不拥有节点
+        intrusive_tree_type tree_{};
+
+        // 分配并构造一个节点，返回节点基类引用
+        node_base& allocate_node()
+        {
+            node_allocator a{ alloc };
+            auto raw = std::allocator_traits<node_allocator>::allocate(a, 1);
+            node_type* p = std::to_address(raw);
+            std::allocator_traits<node_allocator>::construct(a, p);
+            return static_cast<node_base&>(*p);
+        }
+        // 析构并释放节点
+        void deallocate_node(node_base& n)noexcept
+        {
+            node_type* raw = static_cast<node_type*>(&n);
+            node_allocator a{ alloc };
+            std::allocator_traits<node_allocator>::destroy(a, raw);
+            std::allocator_traits<node_allocator>::deallocate(a,
+                std::pointer_traits<typename std::allocator_traits<node_allocator>::pointer>::
+                pointer_to(*raw), 1);
+        }
     public:
         using allocator_type = Alloc;
         using value_type = T;
         using reference = T&;
-        // 分配器所提供的指针类型。分配器先被 rebind 到一个空占位类型以统一管理
-        // 节点内存，因此这是模板参数 Alloc（而非某次 rebind 结果）的 pointer；
-        // 当它不是裸指针（fancy pointer，如 boost::interprocess::offset_ptr）时，
-        // 节点所占据的存储、节点的左右 _树位置_、parent 与哨兵节点都由它表示。
         using pointer = std::allocator_traits<Alloc>::pointer;
-        using edge_proxy = details::parent_aware_binary_tree_edge_proxy<T, place_holder_allocator>;
-        using edge_const_proxy = details::parent_aware_binary_tree_edge_const_proxy<T, place_holder_allocator>;
-        using node_proxy = details::parent_aware_binary_tree_node_proxy<T, place_holder_allocator>;
-        using node_const_proxy = details::parent_aware_binary_tree_node_const_proxy<T, place_holder_allocator>;
-    private:
-        // 分配器（使用 YC_NO_UNIQUE_ADDRESS 以零开销存储无状态分配器）
-        YC_NO_UNIQUE_ADDRESS Alloc alloc{};
-        // 哨兵根节点：自身不存储数据，仅通过 left 指针引用实际树根
-        // 使根的父指针也有效，统一处理所有边界情况
-        details::parent_aware_binary_tree_node_base1<place_holder_allocator> root_node{};
-        // 获取占位符对象的 fancy pointer（适配 fancy pointer 类型）
-        node_pointer pointer_to(const details::parent_aware_binary_tree_empty_placeholder& ref)const noexcept
-        {
-            return std::pointer_traits<node_pointer>::pointer_to((details::parent_aware_binary_tree_empty_placeholder&)ref);
-        }
-        // 分配并构造一个节点（基类部分默认构造，用户数据需另行构造）
-        node_pointer allocate_node()
-        {
-            node_allocator a{ alloc };
-            node_pointer p = std::pointer_traits<node_pointer>::pointer_to
-                (static_cast<details::parent_aware_binary_tree_empty_placeholder&>(*std::allocator_traits<node_allocator>::allocate(a, 1)));
-            std::allocator_traits<node_allocator>::construct(a, (node_type*)std::to_address(p));
-            return p;
-        }
-        // 析构并释放节点
-        void deallocate_node(node_pointer p)noexcept
-        {
-            node_allocator a{ alloc };
-            std::allocator_traits<node_allocator>::destroy(a, (node_type*)std::to_address(p));
-            return std::allocator_traits<node_allocator>::deallocate(a,
-                std::pointer_traits<typename std::allocator_traits<node_allocator>::pointer>::pointer_to(*(node_type*)std::to_address(p)), 1);
-        }
-    public:
-        Alloc get_allocator()const noexcept
-        {
-            return alloc;
-        }
-        // 获取哨兵根节点对应的 node_proxy（即树的"父节点的父节点"）
-        node_proxy parent_of_nroot()noexcept
-        {
-            return { pointer_to(root_node) };
-        }
-        node_const_proxy parent_of_nroot()const noexcept
-        {
-            return { pointer_to(root_node) };
-        }
-        node_const_proxy parent_of_cnroot()const noexcept
-        {
-            return { pointer_to(root_node) };
-        }
-        // 获取树根的 edge_proxy（哨兵 root_node 到实际树根的边）
-        edge_proxy root()noexcept
-        {
-            return { pointer_to(root_node), true };
-        }
-        edge_const_proxy root()const noexcept
-        {
-            return { pointer_to(root_node), true };
-        }
-        edge_const_proxy croot()const noexcept
-        {
-            return { pointer_to(root_node), true };
-        }
-        // 获取树根对应的 node_proxy
-        node_proxy nroot()noexcept
-        {
-            return parent_of_nroot().go_left();
-        }
-        node_const_proxy nroot()const noexcept
-        {
-            return parent_of_nroot().go_left();
-        }
-        node_const_proxy cnroot()const noexcept
-        {
-            return parent_of_cnroot().go_left();
-        }
+        using edge_proxy = details::parent_aware_binary_tree_edge_proxy<T, vptr>;
+        using edge_const_proxy = details::parent_aware_binary_tree_edge_const_proxy<T, vptr>;
+        using node_proxy = details::parent_aware_binary_tree_node_proxy<T, vptr>;
+        using node_const_proxy = details::parent_aware_binary_tree_node_const_proxy<T, vptr>;
     private:
         // 递归写入实现（使用 goto 实现尾递归）
-        template<
-            class ValueGetter,
-            class ChildrenGetter,
-            class InitializeHandle
-        >
-        void recur_and_write_impl(
-            edge_const_proxy p,
-            ValueGetter& vg,
-            ChildrenGetter& cg,
-            InitializeHandle h
-        )
+        template<class ValueGetter, class ChildrenGetter, class InitializeHandle>
+        void recur_and_write_impl(edge_const_proxy p, ValueGetter& vg,
+            ChildrenGetter& cg, InitializeHandle h)
         {
         derecur:
             if (!p.null())
@@ -742,26 +579,11 @@ namespace Yc
             goto tmp;
         }
     public:
-        // 递归写入：从外部树形结构（由 h 表示的句柄）复制数据到当前树
-        // vg：值获取器（从句柄提取 T 值）
-        // cg：子节点获取器（从句柄提取左右子句柄）
-        // h：当前句柄（bool 可转换为 false 表示空）
-        // 约束：h 必须可 bool 转换
-        template<
-            class ValueGetter,
-            class ChildrenGetter,
-            class InitializeHandle
-        >
-        parent_aware_binary_tree recur_and_write(
-            edge_const_proxy p,
-            ValueGetter vg,
-            ChildrenGetter cg,
-            InitializeHandle h
-        )
+        template<class ValueGetter, class ChildrenGetter, class InitializeHandle>
+        parent_aware_binary_tree recur_and_write(edge_const_proxy p,
+            ValueGetter vg, ChildrenGetter cg, InitializeHandle h)
         {
-            // 先切割原有子树，新建一棵临时树，构造完成后拼接回去
             parent_aware_binary_tree ret{ cut(p) };
-            // guard：若构造过程中异常，自动将已构造部分拼回原树
             struct _guard
             {
                 parent_aware_binary_tree* t;
@@ -779,38 +601,32 @@ namespace Yc
             {
                 recur_and_write_impl(p, vg, cg, h);
             }
-            guard.t = nullptr;  // 成功：解除 guard
+            guard.t = nullptr;
             return ret;
         }
-        // 从树形结构构造整棵树
-        template<
-            class ValueGetter,
-            class ChildrenGetter,
-            class InitializeHandle
-        >
-        parent_aware_binary_tree(
-            ValueGetter vg,
-            ChildrenGetter cg,
-            InitializeHandle h,
-            const Alloc& a = {}
-        ) :alloc{ a }
+        parent_aware_binary_tree() = default;
+        explicit parent_aware_binary_tree(const Alloc& a)noexcept :alloc{ a }
+        {
+        }
+        template<class ValueGetter, class ChildrenGetter, class InitializeHandle>
+        parent_aware_binary_tree(ValueGetter vg, ChildrenGetter cg,
+            InitializeHandle h, const Alloc& a = {}) :alloc{ a }
         {
             if (h)
             {
                 recur_and_write_impl(root(), vg, cg, h);
             }
         }
-        // 拷贝构造：递归复制整棵树的结构和值
-        parent_aware_binary_tree(const parent_aware_binary_tree& b) :alloc{ std::allocator_traits<Alloc>::select_on_container_copy_construction(b.alloc) }
+        parent_aware_binary_tree(const parent_aware_binary_tree& b)
+            :alloc{ std::allocator_traits<Alloc>::select_on_container_copy_construction(b.alloc) }
         {
             auto copier = [](edge_const_proxy p) -> const T&
-                {
-                    return *p;
-                };
-            recur_and_write
-                (root(), copier, parent_aware_binary_tree_functional::get_children, b.croot());
+            {
+                return *p;
+            };
+            recur_and_write(root(), copier,
+                parent_aware_binary_tree_functional::get_children, b.croot());
         }
-        // 拷贝赋值
         parent_aware_binary_tree& operator=(const parent_aware_binary_tree& b)
         {
             if (this == &b)
@@ -818,8 +634,7 @@ namespace Yc
                 return *this;
             }
             Alloc tmp{ alloc };
-            parent_aware_binary_tree t1{ cut(root()) };  // 临时持有旧树
-            // guard：若复制过程异常，恢复原分配器和旧树
+            parent_aware_binary_tree t1{ cut(root()) };
             struct _guard
             {
                 parent_aware_binary_tree* t{};
@@ -834,118 +649,135 @@ namespace Yc
                     }
                 }
             }guard{ this, &tmp, &t1 };
-            if constexpr (
-                std::allocator_traits<Alloc>::propagate_on_container_copy_assignment::value)
+            if constexpr (std::allocator_traits<Alloc>::propagate_on_container_copy_assignment::value)
             {
                 alloc = b.alloc;
             }
             auto copier = [](edge_const_proxy p)->const T&
-                {
-                    return *p;
-                };
-            recur_and_write(root(), copier, parent_aware_binary_tree_functional::get_children, b.root());
+            {
+                return *p;
+            };
+            recur_and_write(root(), copier,
+                parent_aware_binary_tree_functional::get_children, b.root());
             guard.t = nullptr;
             return *this;
         }
-        // 切割：将 p 指向的子树从原树分离，返回一棵包含该子树的新树
-        parent_aware_binary_tree cut(edge_const_proxy p)noexcept
+        parent_aware_binary_tree(parent_aware_binary_tree&& other)noexcept :
+            alloc{ std::move(other.alloc) }
         {
-            typename edge_const_proxy::pointer& place = p.child();
-            parent_aware_binary_tree ret{ alloc };
-            ret.root_node.left = std::exchange(place, {});  // 断开原树连接
-            
-            if (ret.root_node.left)
-            {
-                static_cast<node_type&>(*ret.root_node.left).parent = pointer_to(ret.root_node);
-            }
-            return ret;
+            tree_.swap(other.tree_);
         }
-        
+        parent_aware_binary_tree& operator=(parent_aware_binary_tree&& other)noexcept(
+            std::allocator_traits<Alloc>::propagate_on_container_move_assignment::value ||
+            std::allocator_traits<Alloc>::is_always_equal::value)
+        {
+            if constexpr (std::allocator_traits<Alloc>::propagate_on_container_move_assignment::value)
+            {
+                std::swap(alloc, other.alloc);
+                tree_.swap(other.tree_);
+                return *this;
+            }
+            else
+            {
+                if (alloc == other.alloc)
+                {
+                    tree_.swap(other.tree_);
+                    return *this;
+                }
+                auto vg = [](edge_proxy p) -> T&&
+                {
+                    return (T&&)*p;
+                };
+                parent_aware_binary_tree tmp{ vg,
+                    parent_aware_binary_tree_functional::get_children,
+                    other.root(), alloc };
+                tree_.swap(tmp.tree_);
+                return *this;
+            }
+        }
+        ~parent_aware_binary_tree()
+        {
+            clear();
+        }
+        Alloc get_allocator()const noexcept
+        {
+            return alloc;
+        }
         bool empty()const noexcept
         {
-            return root_node.left == nullptr;
+            return tree_.empty();
         }
-        // 删除指定边上的节点及其所有子节点（迭代式，避免递归栈溢出）
+        node_proxy parent_of_nroot()noexcept
+        {
+            return node_proxy{ tree_.parent_of_nroot() };
+        }
+        node_const_proxy parent_of_nroot()const noexcept
+        {
+            return node_const_proxy{ tree_.parent_of_nroot() };
+        }
+        node_const_proxy parent_of_cnroot()const noexcept
+        {
+            return node_const_proxy{ tree_.parent_of_nroot() };
+        }
+        edge_proxy root()noexcept
+        {
+            return edge_proxy{ tree_.root() };
+        }
+        edge_const_proxy root()const noexcept
+        {
+            return edge_const_proxy{ tree_.root() };
+        }
+        edge_const_proxy croot()const noexcept
+        {
+            return edge_const_proxy{ tree_.root() };
+        }
+        node_proxy nroot()noexcept
+        {
+            return node_proxy{ tree_.nroot() };
+        }
+        node_const_proxy nroot()const noexcept
+        {
+            return node_const_proxy{ tree_.nroot() };
+        }
+        node_const_proxy cnroot()const noexcept
+        {
+            return node_const_proxy{ tree_.nroot() };
+        }
+        parent_aware_binary_tree cut(edge_const_proxy p)noexcept
+        {
+            parent_aware_binary_tree ret{ alloc };
+            ret.tree_.set_root(tree_.unlink(p.intrusive()));
+            return ret;
+        }
         void erase(edge_const_proxy p)noexcept
         {
-            if (!p.null())
+            tree_.erase(p.intrusive(), [this](auto np)noexcept
             {
-                typename edge_const_proxy::pointer& place = p.child();
-                while (true)
-                {
-                    auto [l, r] = p.get_children();
-                    bool l_null = l.null();
-                    bool r_null = r.null();
-                    if (l_null && r_null)
-                    {
-                        std::allocator_traits<Alloc>::destroy(alloc, (T*)p.operator->());
-                        deallocate_node(place);
-                        place = nullptr;
-                        return;
-                    }
-                    if (!r_null)
-                    {
-                        erase(l);
-                        typename edge_const_proxy::pointer right = r.child();
-                        std::allocator_traits<Alloc>::destroy(alloc, (T*)p.operator->());
-                        deallocate_node(place);
-                        place = right;
-                        continue;
-                    }
-                    if ((!l_null) && r_null)
-                    {
-                        typename edge_const_proxy::pointer left = l.child();
-                        std::allocator_traits<Alloc>::destroy(alloc, (T*)p.operator->());
-                        deallocate_node(place);
-                        place = left;
-                        continue;
-                    }
-                }
-            }
+                node_base& n = *np;
+                std::allocator_traits<Alloc>::destroy(alloc,
+                    std::addressof(static_cast<node_type&>(n).data.data));
+                deallocate_node(n);
+            });
         }
-        // 清空整棵树
         void clear()noexcept
         {
             erase(root());
         }
-
-        // 中序遍历，对每个节点的值调用 f。
-        // 供容器在销毁节点前做收尾——例如哈希表要先遍历所有桶把元素摘链，
-        // 再 clear() 销毁桶节点。
-        // 非 const 树传入 T&，const 树传入 const T&。
-        // 与 std::for_each 一致：函数对象按值传入、按值返回，所以有状态函数对象
-        // （累加器、计数器之类）遍历完能带着状态出来：
-        //     auto acc = t.for_each(accumulator{});
-        // 约束：f 不应改变树的结构（增删/旋转），否则遍历位置会失效。
-        // 条件性 noexcept：本函数只做遍历、调用 f、再把 f 移出来，因此 noexcept 性质
-        // 只取决于这两件事 —— f 能无异常接受 T&、且 f 能无异常地移动构造。
-        // f 会抛时异常正常向外传播（树保持完整，因为不改结构；f 的副本随栈展开销毁）。
         template<class F>
-        F for_each(F f)noexcept(std::is_nothrow_invocable_v<F&, T&>&& std::is_nothrow_move_constructible_v<F>)
+        F for_each(F f)noexcept(std::is_nothrow_invocable_v<F&, T&>&&
+            std::is_nothrow_move_constructible_v<F>)
         {
             for_each_impl<node_proxy>(nroot(), f);
             return f;
         }
         template<class F>
-        F for_each(F f)const noexcept(std::is_nothrow_invocable_v<F&, const T&>&& std::is_nothrow_move_constructible_v<F>)
+        F for_each(F f)const noexcept(std::is_nothrow_invocable_v<F&, const T&>&&
+            std::is_nothrow_move_constructible_v<F>)
         {
             for_each_impl<node_const_proxy>(cnroot(), f);
             return f;
         }
-
     private:
-        // 无分配的中序遍历：
-        //   - 有左孩子 -> 中序要求先走完左子树再访问本节点，而"回到本节点"需要父指针或
-        //                 一个显式栈；这里两者都不用，所以必须递归一次；
-        //   - 右子树   -> 本节点已访问，直接 goto 循环过去，不递归。
-        // 于是递归深度 = 沿途有左孩子的节点数 ≤ 树高，纯右单链完全不递归。
-        // （析构走的 erase() 仍是纯迭代，因此深左单链的构造与销毁都不会爆栈。）
-        // 本类型其实可以借 parent 指针写成不递归的版本，但为与 binary_tree 完全一致而
-        // 刻意共用同一套实现，便于两个头文件对照维护。
-        // noexcept 一路到底：谓词只描述"f 能否无异常接受引用"，与递归深度无关，
-        // 因此本函数直接沿用与公开 for_each 相同的规格，不做自我判断。这样在 f 不抛
-        // （公开入口为 noexcept）时，本函数体里也不会被生成"异常逃逸即 terminate"
-        // 的捕获代码；f 会抛时规格为假，异常照常传播。
         template<class Proxy, class F>
         static void for_each_impl(Proxy p, F&& f)
             noexcept(std::is_nothrow_invocable_v<F&, decltype(*p)>)
@@ -970,38 +802,37 @@ namespace Yc
             }
         }
     public:
-
-        // 在指定边位置原地构造新节点（已有子树作为切割结果返回）
         template<class... Args>
         parent_aware_binary_tree emplace(edge_const_proxy p, Args&&... args)
         {
-            node_pointer new_node = allocate_node();
+            node_base& new_node = allocate_node();
             if constexpr (std::is_nothrow_constructible_v<T, Args...>)
             {
-                std::allocator_traits<Alloc>::
-                    construct(alloc, std::addressof(((node_type&)*new_node).data.data), std::forward<Args>(args)...);
+                std::allocator_traits<Alloc>::construct(alloc,
+                    std::addressof(static_cast<node_type&>(new_node).data.data),
+                    std::forward<Args>(args)...);
             }
             else
             {
                 struct guard_t
                 {
                     parent_aware_binary_tree* t;
-                    node_pointer ptr;
+                    node_base* ptr;
                     ~guard_t()
                     {
                         if (ptr != nullptr)
                         {
-                            t->deallocate_node(ptr);
+                            t->deallocate_node(*ptr);
                         }
                     }
-                }guard{ this,new_node };
-                std::allocator_traits<Alloc>::
-                    construct(alloc, std::addressof(((node_type&)*new_node).data.data), std::forward<Args>(args)...);
+                }guard{ this, &new_node };
+                std::allocator_traits<Alloc>::construct(alloc,
+                    std::addressof(static_cast<node_type&>(new_node).data.data),
+                    std::forward<Args>(args)...);
                 guard.ptr = nullptr;
             }
             parent_aware_binary_tree ret{ cut(p) };
-            p.child() = new_node;
-            static_cast<node_type&>(*new_node).parent = p.parent;
+            intrusive_tree_type::link(p.intrusive(), tree_.node(new_node));
             return ret;
         }
         parent_aware_binary_tree insert(edge_const_proxy p, const T& v)
@@ -1012,203 +843,56 @@ namespace Yc
         {
             return emplace(p, std::move(v));
         }
-
-        // 拼接：将 from 子树移动到 to 位置，原 to 子树作为结果返回
         parent_aware_binary_tree splice(edge_const_proxy to, edge_const_proxy from)noexcept
         {
             parent_aware_binary_tree ret{ cut(to) };
-            to.child() = std::exchange(from.child(), {});
-            if (to)
-            {
-                static_cast<node_type&>(*to.child()).parent = to.parent;
-            }
+            intrusive_tree_type::splice(to.intrusive(), from.intrusive());
             return ret;
         }
-
-        // 拼接整棵树的根
         parent_aware_binary_tree splice(edge_const_proxy p, parent_aware_binary_tree& tree)noexcept
         {
             return splice(p, tree.root());
         }
-
         parent_aware_binary_tree splice(edge_const_proxy p, parent_aware_binary_tree&& tree)noexcept
         {
             return splice(p, tree.root());
         }
-
-        // 交换两个子树（保持父指针正确）
         static void swap_sub_tree(edge_const_proxy l, edge_const_proxy r)noexcept
         {
-            typename edge_const_proxy::pointer& place_l = l.child();
-            typename edge_const_proxy::pointer& place_r = r.child();
-            std::swap(place_l, place_r);
-            if (place_l)
-            {
-                static_cast<node_type&>(*place_l).parent = l.parent;
-            }
-            if (place_r)
-            {
-                static_cast<node_type&>(*place_r).parent = r.parent;
-            }
+            intrusive_tree_type::swap_sub_tree(l.intrusive(), r.intrusive());
         }
-
-        // 交换两个节点：净效果是"两个位置上的值互换、子树留在原位"（与 binary_tree 一致）。
-        // 内部只有三件事：交换两个槽位，再成对交换两个节点的孩子槽位。swap_sub_tree 会同时
-        // 维护 parent 链，所以父子相邻的情形也自动成立——先换槽位时父节点里那条指向孩子的
-        // 槽位会短暂自指，紧接着成对交换孩子槽位就把它解成"父节点上位、孩子落回原位"。
-        // 因此不需要区分左右、也不需要反转形态的专门重连。
-        // 前置条件：两个边都指代真实节点（(bool)l 与 (bool)r 为真）。
         static void swap_node(edge_const_proxy l, edge_const_proxy r)noexcept
         {
-            swap_sub_tree(l, r);
-            auto [ll, lr] = l.get_children();
-            auto [rl, rr] = r.get_children();
-            swap_sub_tree(ll, rl);
-            swap_sub_tree(lr, rr);
+            intrusive_tree_type::swap_node(l.intrusive(), r.intrusive());
         }
-
-        // 交换两棵树
         void swap(parent_aware_binary_tree& other)noexcept
         {
             if constexpr (std::allocator_traits<Alloc>::propagate_on_container_swap::value)
             {
-                // 必须写 std::swap：类内的成员 swap 会遮蔽 std::swap
                 std::swap(alloc, other.alloc);
             }
-            swap_sub_tree(root(), other.root());
+            tree_.swap(other.tree_);
         }
-
-        parent_aware_binary_tree() = default;
-        // 仅指定分配器的构造
-        explicit parent_aware_binary_tree(const Alloc& a)noexcept:alloc{a}
-        {
-        }
-        
-
-        // 移动构造：移动分配器（与 binary_tree 一致，符合容器移动构造的惯例），
-        // 并通过交换根槽位搬空对方
-        parent_aware_binary_tree(parent_aware_binary_tree&& other)noexcept :alloc{std::move(other.alloc)}
-        {
-            swap_sub_tree(root(), other.root());
-        }
-        // 移动赋值
-        parent_aware_binary_tree& operator=(parent_aware_binary_tree&& other)noexcept(std::allocator_traits<Alloc>::propagate_on_container_move_assignment::value
-            || std::allocator_traits<Alloc>::is_always_equal::value)
-        {
-            if constexpr
-                (std::allocator_traits<Alloc>::propagate_on_container_move_assignment::value)
-            {
-                // 必须写 std::swap：类内还有一个成员 swap，未限定的 swap 会先找到它
-                std::swap(alloc, other.alloc);
-                swap_sub_tree(root(), other.root());
-                return *this;
-            }
-            else
-            {
-                if (alloc == other.alloc)
-                {
-                    swap_sub_tree(root(), other.root());
-                    return *this;
-                }
-                auto vg = [](edge_proxy p) -> T&&
-                    {
-                        return (T&&)*p;
-                    };
-                parent_aware_binary_tree tmp{ vg, parent_aware_binary_tree_functional::get_children, other.root(), alloc };
-                swap_sub_tree(root(), tmp.root());
-                return *this;
-            }
-        }
-        // 析构：清空所有节点
-        ~parent_aware_binary_tree()
-        {
-            clear();
-        }
-
-        // 左旋：将 p 的右子节点提升为 p 的位置
-        //     |                         |
-        //    <A>                       <C>
-        //   /   \                      / \
-        //  <B>  <C>     =====>       <A> <E>
-        //       / \                  / \
-        //     <D> <E>              <B> <D>
         void left_rotate(edge_const_proxy p)noexcept
         {
-            parent_aware_binary_tree t1 = cut(p.get_right()); // <D>-<rC>-<E>
-            parent_aware_binary_tree t2 = splice(p, t1.root()); //<B>-<rA>
-            //     |
-            //    <C>                 <A>
-            //   /   \                /
-            //  <D>  <E>            <B>
-            p.go_left();
-            parent_aware_binary_tree t3 = splice(p, t2.root());
-            p.go_right();
-            splice(p, t3.root());
-            if (!t1.empty())
-            {
-                std::unreachable();
-            }
-            if (!t2.empty())
-            {
-                std::unreachable();
-            }
-            if (!t3.empty())
-            {
-                std::unreachable();
-            }
+            intrusive_tree_type::left_rotate(p.intrusive());
         }
-
-        // 右旋：左旋的镜像操作，将 p 的左子节点提升为 p 的位置
         void right_rotate(edge_const_proxy p)noexcept
         {
-            parent_aware_binary_tree t1 = cut(p.get_left());
-            parent_aware_binary_tree t2 = splice(p, t1.root());
-            p.go_right();
-            parent_aware_binary_tree t3 = splice(p, t2.root());
-            p.go_left();
-            splice(p, t3.root());
-            if (!t1.empty())
-            {
-                std::unreachable();
-            }
-            if (!t2.empty())
-            {
-                std::unreachable();
-            }
-            if (!t3.empty())
-            {
-                std::unreachable();
-            }
+            intrusive_tree_type::right_rotate(p.intrusive());
         }
-
-        // 带检查的左旋：若右子节点存在则执行左旋，否则无操作
         bool checked_left_rotate(edge_const_proxy p)noexcept
         {
-            edge_const_proxy q = p;
-            if (p.null() || (p.go_right(), p.null()))
-            {
-                return false;
-            }
-            left_rotate(q);
-            return true;
+            return intrusive_tree_type::checked_left_rotate(p.intrusive());
         }
-
-        // 带检查的右旋：若左子节点存在则执行右旋，否则无操作
         bool checked_right_rotate(edge_const_proxy p)noexcept
         {
-            edge_const_proxy q = p;
-            if (p.null() || (p.go_left(), p.null()))
-            {
-                return false;
-            }
-            right_rotate(q);
-            return true;
+            return intrusive_tree_type::checked_right_rotate(p.intrusive());
         }
-
     };
-    // 特化 swap 自由函数
     template<class T, class Alloc>
-    void swap(parent_aware_binary_tree<T, Alloc>& l, parent_aware_binary_tree<T, Alloc>& r)noexcept
+    void swap(parent_aware_binary_tree<T, Alloc>& l,
+        parent_aware_binary_tree<T, Alloc>& r)noexcept
     {
         l.swap(r);
     }
