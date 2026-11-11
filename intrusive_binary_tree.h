@@ -686,36 +686,24 @@ namespace Yc
         static void erase(edge_proxy e, Deleter del)noexcept
         {
             node_pointer& place = slot(e);
-            if (!place)
+            node_pointer root = place;
+            while (root)
             {
-                return;
-            }
-            while (true)
-            {
-                node_base& n = *place;
-                const bool has_l = static_cast<bool>(n.left_);
-                const bool has_r = static_cast<bool>(n.right_);
-                if (!has_l && !has_r)
+                if (root->left_)
                 {
-                    node_pointer victim = std::exchange(place, node_pointer{});
-                    victim->detach();
-                    del(victim);
-                    return;
-                }
-                if (has_r)
-                {
-                    erase(edge_proxy{ n, true }, del);
-                    node_pointer right = std::exchange(n.right_, node_pointer{});
-                    node_pointer victim = std::exchange(place, right);
-                    victim->detach();
-                    del(victim);
+                    // 右旋把左孩子提到根，逐步摊平成只有右孩子的链。
+                    node_pointer left = root->left_;
+                    root->left_ = left->right_;
+                    left->right_ = root;
+                    root = left;
                     continue;
                 }
-                node_pointer left_child = std::exchange(n.left_, node_pointer{});
-                node_pointer victim = std::exchange(place, left_child);
-                victim->detach();
-                del(victim);
+                node_pointer next = root->right_;
+                root->detach();
+                del(root);
+                root = next;
             }
+            place = node_pointer{};
         }
         // 只拆结构、不销毁节点
         void clear()noexcept
@@ -1581,44 +1569,51 @@ namespace Yc
         {
             using node_pointer = typename std::pointer_traits<pointer>::template
                 rebind<node_base>;
-            pointer& place = e.child_slot();
-            if (!place)
+            const pointer root = e.child();
+            pointer cur = root;
+            if (!cur)
             {
                 return;
             }
-            while (true)
+            while (cur)
             {
-                node_base& n = as_node(place);
-                if (!n.left_ && !n.right_)
+                node_base& n = as_node(cur);
+                if (n.left_)
                 {
-                    std::exchange(place, pointer{});
-                    n.detach();
-                    del(std::pointer_traits<node_pointer>::pointer_to(n));
-                    return;
+                    cur = n.left_;
+                    continue;
                 }
                 if (n.right_)
                 {
-                    erase(edge_proxy{ n, true }, del);
-                    pointer right = std::exchange(n.right_, pointer{});
-                    pointer up = n.parent_;
-                    std::exchange(place, right);
-                    if (right)
-                    {
-                        as_node(right).parent_ = up;
-                    }
-                    n.detach();
-                    del(std::pointer_traits<node_pointer>::pointer_to(n));
+                    cur = n.right_;
                     continue;
                 }
-                pointer left_child = std::exchange(n.left_, pointer{});
-                pointer up = n.parent_;
-                std::exchange(place, left_child);
-                if (left_child)
+
+                const bool is_root = cur == root;
+                const pointer up = n.parent_;
+                if (is_root)
                 {
-                    as_node(left_child).parent_ = up;
+                    e.child_slot() = pointer{};
+                }
+                else
+                {
+                    node_base& parent = as_node(up);
+                    if (parent.left_ == cur)
+                    {
+                        parent.left_ = pointer{};
+                    }
+                    else
+                    {
+                        parent.right_ = pointer{};
+                    }
                 }
                 n.detach();
                 del(std::pointer_traits<node_pointer>::pointer_to(n));
+                if (is_root)
+                {
+                    break;
+                }
+                cur = up;
             }
         }
         void clear()noexcept

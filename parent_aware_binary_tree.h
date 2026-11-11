@@ -22,6 +22,7 @@
 #include <type_traits>
 #include <functional>
 #include <utility>
+#include <vector>
 #include "intrusive_binary_tree.h"
 #include "union_data.h"
 
@@ -574,39 +575,46 @@ namespace Yc
         using node_proxy = details::parent_aware_binary_tree_node_proxy<T, vptr>;
         using node_const_proxy = details::parent_aware_binary_tree_node_const_proxy<T, vptr>;
     private:
-        // 递归写入实现（使用 goto 实现尾递归）
+        // 递归写入实现：用显式栈模拟递归，避免深树爆栈。
         template<class ValueGetter, class ChildrenGetter, class InitializeHandle>
         void recur_and_write_impl(edge_const_proxy p, ValueGetter& vg,
             ChildrenGetter& cg, InitializeHandle h)
         {
-        derecur:
-            if (!p.null())
+            struct frame
             {
-                std::unreachable();
-            }
-            emplace(p, std::invoke(vg, h));
-            auto [lh, rh] = std::invoke(cg, h);
-            auto [l, r] = p.get_children();
-            bool bl = (bool)lh, br = (bool)rh;
-            if (!(bl && br))
+                edge_const_proxy p;
+                InitializeHandle h;
+            };
+            std::vector<frame> stack;
+            while (true)
             {
-                if (bl)
+                emplace(p, std::invoke(vg, h));
+                auto [lh, rh] = std::invoke(cg, h);
+                auto [l, r] = p.get_children();
+                if (lh)
                 {
+                    if (rh)
+                    {
+                        stack.push_back(frame{ r, std::move(rh) });
+                    }
                     p = l;
-                    h = lh;
-                    goto derecur;
+                    h = std::move(lh);
+                    continue;
                 }
-                if (br)
+                if (rh)
                 {
-                tmp:
                     p = r;
-                    h = rh;
-                    goto derecur;
+                    h = std::move(rh);
+                    continue;
                 }
-                return;
+                if (stack.empty())
+                {
+                    return;
+                }
+                p = stack.back().p;
+                h = std::move(stack.back().h);
+                stack.pop_back();
             }
-            recur_and_write_impl(l, vg, cg, lh);
-            goto tmp;
         }
     public:
         template<class ValueGetter, class ChildrenGetter, class InitializeHandle>
@@ -644,7 +652,7 @@ namespace Yc
         {
             if (h)
             {
-                recur_and_write_impl(root(), vg, cg, h);
+                recur_and_write(root(), vg, cg, h);
             }
         }
         parent_aware_binary_tree(const parent_aware_binary_tree& b)
