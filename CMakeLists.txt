@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.14)  # FetchContent 需要 3.14+
 project(binary_tree)
 
+enable_testing()
+
 set(CMAKE_CXX_STANDARD 23)  # 两个二叉树头文件用了 std::unreachable（C++23）
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
@@ -30,4 +32,15 @@ target_include_directories(test_runner PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(test_runner GTest::gtest GTest::gtest_main)
 
 include(GoogleTest)
+add_executable(test_intrusive_binary_tree
+    test_intrusive_binary_tree.cpp
+)
+target_include_directories(test_intrusive_binary_tree PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+add_test(NAME test_intrusive_binary_tree COMMAND test_intrusive_binary_tree)
+
+if(MSVC)
+    target_compile_options(test_runner PRIVATE /utf-8)
+    target_compile_options(test_intrusive_binary_tree PRIVATE /utf-8)
+endif()
+
 gtest_discover_tests(test_runner)

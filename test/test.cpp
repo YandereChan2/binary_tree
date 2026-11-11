@@ -1,9 +1,11 @@
 #include "gtest/gtest.h"
 
+#include <algorithm>
 #include <string>
 #include <type_traits>
 #include <unordered_set>
 #include <utility>
+#include <vector>
 
 #include "binary_tree.h"
 #include "parent_aware_binary_tree.h"
@@ -51,6 +53,16 @@ namespace
         std::string s;
         t.for_each([&](int& v) { s += std::to_string(v) + ","; });
         return s;
+    }
+
+    // for_each 不承诺遍历顺序；只比较访问到的值集合。
+    template<class Tree>
+    std::vector<int> sorted_values(Tree& t)
+    {
+        std::vector<int> values;
+        t.for_each([&](int& v) { values.push_back(v); });
+        std::sort(values.begin(), values.end());
+        return values;
     }
 
     // 左单链：0 是最深（最左）的节点
@@ -179,7 +191,7 @@ TEST(binary_tree, for_each_left_chain_visits_every_node)
 {
     BT t;
     build_left_chain(t, 6);                     // 5 是最深节点
-    EXPECT_EQ(in_order(t), "5,4,3,2,1,0,");
+    EXPECT_EQ(sorted_values(t), (std::vector<int>{ 0, 1, 2, 3, 4, 5 }));
 }
 
 // for_each 与 std::for_each 一样按值返回函数对象：有状态函数对象能带出累积结果
@@ -404,7 +416,7 @@ TEST(parent_aware_binary_tree, for_each_left_chain_visits_every_node)
 {
     PA t;
     build_left_chain(t, 6);
-    EXPECT_EQ(in_order(t), "5,4,3,2,1,0,");
+    EXPECT_EQ(sorted_values(t), (std::vector<int>{ 0, 1, 2, 3, 4, 5 }));
 }
 
 TEST(parent_aware_binary_tree, swap_node)
