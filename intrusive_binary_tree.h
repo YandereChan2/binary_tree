@@ -966,28 +966,33 @@ namespace Yc
         using node_proxy = intrusive_parent_aware_binary_tree_node_proxy<vptr>;
         using pointer = typename virtual_base::pointer;
 
+        using child_member = pointer virtual_base::*;
+
         pointer parent_{};
-        bool left_{ true };
+        child_member ch_{ &virtual_base::left_ };
+
+        static constexpr child_member left_member = &virtual_base::left_;
+        static inline const child_member right_member =
+            (child_member)(&node_base::right_);
 
         template<class>
         friend class basic_intrusive_parent_aware_binary_tree;
 
         pointer child()const noexcept
         {
-            return left_ ? parent_->left_
-                         : static_cast<node_base&>(*parent_).right_;
+            return static_cast<virtual_base&>(*parent_).*ch_;
         }
         pointer& child_slot()const noexcept
         {
-            return left_ ? parent_->left_
-                         : static_cast<node_base&>(*parent_).right_;
+            return static_cast<virtual_base&>(*parent_).*ch_;
         }
 
     public:
         intrusive_parent_aware_binary_tree_edge_proxy() = default;
         intrusive_parent_aware_binary_tree_edge_proxy(virtual_base& parent,
             bool left_child)noexcept
-            : parent_{ virtual_base::to_pointer(parent) }, left_{ left_child }
+            : parent_{ virtual_base::to_pointer(parent) },
+              ch_{ left_child ? left_member : right_member }
         {
         }
         intrusive_parent_aware_binary_tree_edge_proxy(node_proxy parent,
@@ -1007,13 +1012,13 @@ namespace Yc
         intrusive_parent_aware_binary_tree_edge_proxy& go_left()noexcept
         {
             parent_ = child();
-            left_ = true;
+            ch_ = left_member;
             return *this;
         }
         intrusive_parent_aware_binary_tree_edge_proxy& go_right()noexcept
         {
             parent_ = child();
-            left_ = false;
+            ch_ = right_member;
             return *this;
         }
         // 从子边走到父边；根边（父节点是哨兵）不能再向上
@@ -1021,7 +1026,8 @@ namespace Yc
         {
             node_base& p = static_cast<node_base&>(*parent_);
             pointer up = p.parent_;
-            left_ = static_cast<virtual_base&>(*up).left_ == parent_;
+            ch_ = static_cast<virtual_base&>(*up).left_ == parent_
+                ? left_member : right_member;
             parent_ = up;
             return *this;
         }
@@ -1054,12 +1060,12 @@ namespace Yc
         }
         bool is_left()const noexcept
         {
-            return left_;
+            return ch_ == left_member;
         }
         friend bool operator==(intrusive_parent_aware_binary_tree_edge_proxy l,
             intrusive_parent_aware_binary_tree_edge_proxy r)noexcept
         {
-            return l.parent_ == r.parent_ && l.left_ == r.left_;
+            return l.parent_ == r.parent_ && l.ch_ == r.ch_;
         }
         friend struct std::hash<intrusive_parent_aware_binary_tree_edge_proxy>;
         template<class>
@@ -1094,7 +1100,8 @@ namespace Yc
         intrusive_parent_aware_binary_tree_edge_proxy(
             intrusive_parent_aware_binary_tree_node_proxy<vptr> parent,
             bool left_child)noexcept
-        : parent_{ parent.node_ }, left_{ left_child }
+        : parent_{ parent.node_ },
+          ch_{ left_child ? left_member : right_member }
     {
     }
 

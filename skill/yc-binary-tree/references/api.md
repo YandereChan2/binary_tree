@@ -16,10 +16,10 @@
 | `value_type` | `T` |
 | `reference` | `T&` |
 | `pointer` | `std::allocator_traits<Alloc>::pointer` |
-| `edge_proxy` | `details::binary_tree_edge_proxy<T, placeholder_alloc>` |
-| `edge_const_proxy` | `details::binary_tree_edge_const_proxy<T, placeholder_alloc>` |
-| `node_proxy` | `details::binary_tree_node_proxy<T, placeholder_alloc>` |
-| `node_const_proxy` | `details::binary_tree_node_const_proxy<T, placeholder_alloc>` |
+| `edge_proxy` | `details::binary_tree_edge_proxy<T, std::allocator_traits<Alloc>::pointer>` |
+| `edge_const_proxy` | `details::binary_tree_edge_const_proxy<T, std::allocator_traits<Alloc>::pointer>` |
+| `node_proxy` | `details::binary_tree_node_proxy<T, std::allocator_traits<Alloc>::pointer>` |
+| `node_const_proxy` | `details::binary_tree_node_const_proxy<T, std::allocator_traits<Alloc>::pointer>` |
 
 ### 构造 / 赋值 / 析构
 
@@ -30,7 +30,7 @@
 | `template<class VG, class CG, class IH> binary_tree(VG vg, CG cg, IH h, const Alloc& a = {})` | 从外部树形结构构建；`h` 需可 `bool` 转换 |
 | `binary_tree(const binary_tree&)` | 深拷贝（`select_on_container_copy_construction`） |
 | `binary_tree& operator=(const binary_tree&)` | 带 `_guard` 的强异常安全；开头有自赋值检查，`a = a` 安全且不会清空 |
-| `binary_tree(binary_tree&&) noexcept` | `exchange(root_ptr)` + 移动分配器 |
+| `binary_tree(binary_tree&&) noexcept` | 移动分配器并移动内部侵入式树 |
 | `binary_tree& operator=(binary_tree&&) noexcept(POCMA \|\| is_always_equal)` | 分配器不等时逐个移动 |
 | `~binary_tree()` | `clear()` |
 
@@ -39,8 +39,8 @@
 | 签名 | 说明 |
 |---|---|
 | `Alloc get_allocator() const noexcept` | |
-| `bool empty() const noexcept` | `root_ptr == nullptr` |
-| `edge_proxy root() noexcept` / `edge_const_proxy root() const noexcept` | 指向树自身 `root_ptr` 的边 |
+| `bool empty() const noexcept` | 内部树为空 |
+| `edge_proxy root() noexcept` / `edge_const_proxy root() const noexcept` | 指向内部根槽位的边 |
 | `edge_const_proxy croot() const noexcept` | |
 | `node_proxy nroot() noexcept` / `node_const_proxy nroot() const noexcept` | 根节点 |
 | `node_const_proxy cnroot() const noexcept` | |
@@ -130,9 +130,9 @@
 
 ### 移动构造
 
-`parent_aware_binary_tree(parent_aware_binary_tree&& other) noexcept : alloc{std::move(other.alloc)} { swap_sub_tree(root(), other.root()); }`
+`parent_aware_binary_tree(parent_aware_binary_tree&& other) noexcept : alloc{std::move(other.alloc)} { tree_.swap(other.tree_); }`
 
-—— 与 `binary_tree` 一样**移动**分配器，并通过交换根槽位搬空对方。
+—— 与 `binary_tree` 一样**移动**分配器，并通过交换内部侵入式树搬空对方。
 
 ### 自由函数与函数对象
 
@@ -169,7 +169,7 @@
 | `value_type` | `T` | 四个代理一律是 `T`（与 const 迭代器约定一致，不带 const） |
 | `reference` | `T&` / `const T&` | const 性由它表达 |
 
-构造函数（`public`）：默认；拷贝；`edge_const_proxy` 可由 `edge_proxy` 隐式构造（共享槽位）。`parent_aware` 另有 `(pointer parent, bool left_flag)`。
+构造函数（`public`）：默认；拷贝；`edge_const_proxy` 可由 `edge_proxy` 隐式构造（共享槽位）。接收侵入式代理的构造函数是私有实现细节，不是公开接口。
 
 ### `node_proxy` / `node_const_proxy`
 

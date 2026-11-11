@@ -153,10 +153,6 @@ namespace Yc
             using node_type = binary_tree_node<T, vptr>;
 
             intrusive_edge e_{};
-            static binary_tree_edge_const_proxy make(intrusive_edge e)noexcept
-            {
-                return binary_tree_edge_const_proxy{ e };
-            }
             binary_tree_edge_const_proxy(intrusive_edge e)noexcept : e_{ e }
             {
             }
@@ -202,11 +198,11 @@ namespace Yc
             }
             binary_tree_edge_const_proxy get_left()const noexcept
             {
-                return make(e_.get_left());
+                return binary_tree_edge_const_proxy{ e_.get_left() };
             }
             binary_tree_edge_const_proxy get_right()const noexcept
             {
-                return make(e_.get_right());
+                return binary_tree_edge_const_proxy{ e_.get_right() };
             }
             std::pair<binary_tree_edge_const_proxy, binary_tree_edge_const_proxy> get_children()const noexcept
             {

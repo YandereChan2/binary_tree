@@ -12,7 +12,7 @@ description: 设计与使用 Yc 库的两个二叉树头文件——binary_tree.
 | | `Yc::binary_tree<T, Alloc>` | `Yc::parent_aware_binary_tree<T, Alloc>` |
 |---|---|---|
 | 节点内容 | `left`、`right` | `left`、`right`、**`parent`** |
-| 树的根 | 自己持有裸 `root_ptr` | **哨兵 `root_node`**，其 `left` 指向真实树根 |
+| 树的根 | 内部侵入式树持有根槽位 | **哨兵 `sentinel_`**，其 `left` 指向真实树根 |
 | 能向上走 | ✗ | ✓ `go_up()` / `get_parent()` |
 | 适用 | 只需向下遍历、在意每节点少一个指针 | 需要向上、实现平衡树、需要兄弟上下文 |
 
@@ -22,7 +22,7 @@ description: 设计与使用 Yc 库的两个二叉树头文件——binary_tree.
 
 树不是"节点的集合"，而是**指针槽位的图**。`edge_proxy` 封装的不是节点，而是父节点里那个 `left`/`right` **槽位**。因此树根同样拥有一条边：
 
-- `binary_tree`：`root()` 返回指向**树自身 `root_ptr` 成员**的边（无哨兵，但槽位语义仍然统一）。
+- `binary_tree`：`root()` 返回指向**内部侵入式树根槽位**的边（无哨兵，但槽位语义仍然统一）。
 - `parent_aware_binary_tree`：`root()` 返回**哨兵 `root_node` → 真实树根**的边。
 
 好处：插入/删除/旋转/拼接全部只在"边"这一层实现，无需为根节点写特例分支。
@@ -31,11 +31,11 @@ description: 设计与使用 Yc 库的两个二叉树头文件——binary_tree.
 
 | | `binary_tree` | `parent_aware_binary_tree` |
 |---|---|---|
-| 边持有什么 | `ptr`——指向槽位的指针（pointer-to-pointer） | `parent` + `ch`——父节点指针 + **成员指针**（`&base1::left` / `&node_base::right`） |
+| 边持有什么 | `ptr`——指向槽位的指针（pointer-to-pointer） | `parent_` + `ch_`——父节点指针 + **成员指针**（`&virtual_base::left_` / `&node_base::right_`） |
 | 取槽位 | `*ptr` | `static_cast<base1&>(*parent).*ch`（私有 `child()`） |
 | 向上 | 不支持 | `go_up()` / `get_parent()` |
 
-`parent_aware` 的节点刻意拆成三层基类（`empty_placeholder` → `node_base1{left}` → `node_base{right,parent}` → `node`），正是为了让"指向 `left`/`right` 的成员指针"能安全地做偏移运算，同时靠空基类优化不增加开销。
+`parent_aware` 的节点刻意拆成 `virtual_node_base{left}` → `node_base{right,parent}` → `node`，正是为了让"指向 `left`/`right` 的成员指针"能安全地做偏移运算，同时靠空基类优化不增加开销。
 
 ### 2. 换出来的东西会还给你
 
@@ -153,7 +153,7 @@ auto acc = t.for_each(accumulator{});
 | 维度 | `binary_tree` | `parent_aware_binary_tree` |
 |---|---|---|
 | 每个节点多一个指针 | 无 | `parent` |
-| 树根 | 自己持有 `root_ptr` | 哨兵 `root_node`，其 `left` 指向真实树根 |
+| 树根 | 内部侵入式树持有根槽位 | 哨兵 `sentinel_`，其 `left` 指向真实树根 |
 | `go_up` / `get_parent` | 无 | 有 |
 | `node_proxy` → `edge_proxy` | **无此转换**（只能 `get_children()`） | 有 `operator edge_proxy()` |
 | 额外 API | — | `parent_of_nroot()`、`parent_of_cnroot()` |
