@@ -116,9 +116,9 @@ int main()
     {
         plain_node a(1), b(2), c(3), d(4), e(5);
         plain_tree t;
-        assert((*t.node(a)).is_detached());
+        assert((*plain_tree::node_proxy{ a }).is_detached());
         plain_tree::insert(t.root(), a);
-        assert((*t.node(a)).is_managed());
+        assert((*plain_tree::node_proxy{ a }).is_managed());
         auto r = t.root();
         plain_tree::insert(r.get_left(), b);
         plain_tree::insert(r.get_right(), c);
@@ -135,8 +135,8 @@ int main()
         assert(as_plain(*root_node.get_right()).v == 3);
         assert(!(*root_node.get_left().get_left()).has_children());
         t.clear();
-        assert((*t.node(a)).is_detached());
-        assert((*t.node(b)).is_detached());
+        assert((*plain_tree::node_proxy{ a }).is_detached());
+        assert((*plain_tree::node_proxy{ b }).is_detached());
     }
 
     // ---- 无父指针：insert 换出原子树 ----
@@ -233,8 +233,8 @@ int main()
         });
         assert(deleted == 3);
         assert(t.empty());
-        assert((*t.node(a)).is_detached());
-        assert((*t.node(b)).is_detached());
+        assert((*plain_tree::node_proxy{ a }).is_detached());
+        assert((*plain_tree::node_proxy{ b }).is_detached());
 
         // clear 只拆结构
         plain_tree::insert(t.root(), a);
@@ -242,7 +242,7 @@ int main()
         t.clear();
         assert(t.empty());
         assert(!t.nroot());
-        assert((*t.node(a)).is_detached());
+        assert((*plain_tree::node_proxy{ a }).is_detached());
 
         // 无 deleter 的 erase 只让子树脱管
         plain_tree t2;
@@ -250,8 +250,8 @@ int main()
         plain_tree::insert(t2.root().get_left(), b);
         plain_tree::erase(t2.root());
         assert(t2.empty());
-        assert((*t2.node(a)).is_detached());
-        assert((*t2.node(b)).is_detached());
+        assert((*plain_tree::node_proxy{ a }).is_detached());
+        assert((*plain_tree::node_proxy{ b }).is_detached());
     }
 
     // ---- 带父指针：insert 换出原子树 ----
@@ -272,9 +272,9 @@ int main()
     {
         pa_node a(1), b(2), c(3), d(4), e(5);
         pa_tree t;
-        assert((*t.node(a)).is_detached());
+        assert((*pa_tree::node_proxy{ a }).is_detached());
         pa_tree::insert(t.root(), a);
-        assert((*t.node(a)).is_managed());
+        assert((*pa_tree::node_proxy{ a }).is_managed());
         pa_tree::insert(t.root().get_left(), b);
         pa_tree::insert(t.root().get_right(), c);
         pa_tree::insert(t.root().get_left().get_left(), d);
@@ -323,7 +323,7 @@ int main()
         assert(static_cast<pa_node&>(*moved.nroot()).v == 2);
         check_parents(moved.nroot(), moved.parent_of_nroot());
         moved.clear();
-        assert((*moved.node(a)).is_detached());
+        assert((*pa_tree::node_proxy{ a }).is_detached());
     }
 
     // ---- 带父指针：erase / clear ----
@@ -343,8 +343,8 @@ int main()
         });
         assert(deleted == 4);
         assert(t.empty());
-        assert((*t.node(a)).is_detached());
-        assert((*t.node(b)).is_detached());
+        assert((*pa_tree::node_proxy{ a }).is_detached());
+        assert((*pa_tree::node_proxy{ b }).is_detached());
 
         // clear 只拆结构
         pa_node f(6), g(7);
@@ -353,7 +353,7 @@ int main()
         t.clear();
         assert(t.empty());
         assert(!t.nroot());
-        assert((*t.node(f)).is_detached());
+        assert((*pa_tree::node_proxy{ f }).is_detached());
 
         // 无 deleter 的 erase 只让子树脱管
         pa_tree t2;
@@ -361,8 +361,8 @@ int main()
         pa_tree::insert(t2.root().get_left(), g);
         pa_tree::erase(t2.root());
         assert(t2.empty());
-        assert((*t2.node(f)).is_detached());
-        assert((*t2.node(g)).is_detached());
+        assert((*pa_tree::node_proxy{ f }).is_detached());
+        assert((*pa_tree::node_proxy{ g }).is_detached());
     }
 
     // ---- const 代理 / 自由 swap / splice 返回旧树 ----

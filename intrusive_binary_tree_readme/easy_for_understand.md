@@ -155,7 +155,7 @@ struct task : Yc::intrusive_binary_tree_node_base<>
 };
 
 task t{...};
-auto p = tree.node(t);          // 指代这棵 _二叉树_
+auto p = Yc::intrusive_binary_tree_node_proxy<>{ t }; // 指代这棵 _二叉树_
 auto& same = static_cast<task&>(*p);
 ```
 

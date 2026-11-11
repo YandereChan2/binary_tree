@@ -560,15 +560,6 @@ namespace Yc
         {
             return nroot();
         }
-        // 由节点基类引用构造节点 proxy（供上层容器包装自己分配的节点）
-        node_proxy node(node_base& n)noexcept
-        {
-            return node_proxy{ n };
-        }
-        node_const_proxy node(const node_base& n)const noexcept
-        {
-            return node_const_proxy{ n };
-        }
         // 把 n 插到 pos；n 必须处于脱管状态，否则是未定义行为。
         // 返回被换出的原子树。
         static basic_intrusive_binary_tree insert(edge_proxy pos, node_base& n)noexcept
@@ -1410,14 +1401,6 @@ namespace Yc
         node_const_proxy parent_of_cnroot()const noexcept
         {
             return parent_of_nroot();
-        }
-        node_proxy node(virtual_base& n)noexcept
-        {
-            return node_proxy{ n };
-        }
-        node_const_proxy node(const virtual_base& n)const noexcept
-        {
-            return node_const_proxy{ n };
         }
         // 把 n 插到 pos；n 必须处于脱管状态，否则是未定义行为。
         // 返回被换出的原子树。

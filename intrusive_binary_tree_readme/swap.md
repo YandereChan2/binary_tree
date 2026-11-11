@@ -43,12 +43,13 @@ void swap(basic_intrusive_parent_aware_binary_tree<vptr>&,
 ## 示例
 
 ```C++
+using tree = Yc::basic_intrusive_binary_tree<>;
 my_binary_tree x, y;
-Yc::basic_intrusive_binary_tree<> a, b;
-Yc::basic_intrusive_binary_tree<>::insert(a.root(), x);
-Yc::basic_intrusive_binary_tree<>::insert(b.root(), y);
+tree a, b;
+tree::insert(a.root(), x);
+tree::insert(b.root(), y);
 Yc::swap(a, b);
-assert(a.nroot() == a.node(y));
+assert(a.nroot() == tree::node_proxy{ y });
 a.clear();
 b.clear();
 ```
