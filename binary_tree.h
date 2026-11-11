@@ -756,11 +756,19 @@ namespace Yc
             auto [l, r] = p.get_children();
             const bool has_l = !l.null();
             const bool has_r = !r.null();
-            if (has_l)
+            if (has_l && has_r)
             {
                 for_each_impl<Proxy>(l, f);
+                std::invoke(f, *p);
+                p = Proxy{ r };
+                goto derecur;
             }
             std::invoke(f, *p);
+            if (has_l)
+            {
+                p = Proxy{ l };
+                goto derecur;
+            }
             if (has_r)
             {
                 p = Proxy{ r };

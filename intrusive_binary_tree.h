@@ -479,11 +479,19 @@ namespace Yc
             }
             const node_pointer l = p->left_;
             const node_pointer r = p->right_;
-            if (l)
+            if (l && r)
             {
                 for_each_impl(l, f);
+                std::invoke(f, *p);
+                p = r;
+                goto derecur;
             }
             std::invoke(f, *p);
+            if (l)
+            {
+                p = l;
+                goto derecur;
+            }
             if (r)
             {
                 p = r;
@@ -501,11 +509,19 @@ namespace Yc
             }
             const node_pointer l = p->left_;
             const node_pointer r = p->right_;
-            if (l)
+            if (l && r)
             {
                 for_each_const_impl(l, f);
+                std::invoke(f, static_cast<const node_base&>(*p));
+                p = r;
+                goto derecur;
             }
             std::invoke(f, static_cast<const node_base&>(*p));
+            if (l)
+            {
+                p = l;
+                goto derecur;
+            }
             if (r)
             {
                 p = r;
@@ -702,7 +718,7 @@ namespace Yc
                     del(victim);
                     return;
                 }
-                if (has_r)
+                if (has_l && has_r)
                 {
                     erase(edge_proxy{ n, true }, del);
                     node_pointer right = std::exchange(n.right_, node_pointer{});
@@ -711,8 +727,16 @@ namespace Yc
                     del(victim);
                     continue;
                 }
-                node_pointer left_child = std::exchange(n.left_, node_pointer{});
-                node_pointer victim = std::exchange(place, left_child);
+                if (has_l)
+                {
+                    node_pointer left_child = std::exchange(n.left_, node_pointer{});
+                    node_pointer victim = std::exchange(place, left_child);
+                    victim->detach();
+                    del(victim);
+                    continue;
+                }
+                node_pointer right = std::exchange(n.right_, node_pointer{});
+                node_pointer victim = std::exchange(place, right);
                 victim->detach();
                 del(victim);
             }
@@ -1292,11 +1316,19 @@ namespace Yc
             }
             const pointer l = p->left_;
             const pointer r = as_node(p).right_;
-            if (l)
+            if (l && r)
             {
                 for_each_impl(l, f);
+                std::invoke(f, as_node(p));
+                p = r;
+                goto derecur;
             }
             std::invoke(f, as_node(p));
+            if (l)
+            {
+                p = l;
+                goto derecur;
+            }
             if (r)
             {
                 p = r;
@@ -1314,11 +1346,19 @@ namespace Yc
             }
             const pointer l = p->left_;
             const pointer r = as_node(p).right_;
-            if (l)
+            if (l && r)
             {
                 for_each_const_impl(l, f);
+                std::invoke(f, static_cast<const node_base&>(as_node(p)));
+                p = r;
+                goto derecur;
             }
             std::invoke(f, static_cast<const node_base&>(as_node(p)));
+            if (l)
+            {
+                p = l;
+                goto derecur;
+            }
             if (r)
             {
                 p = r;
