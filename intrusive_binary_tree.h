@@ -1271,10 +1271,6 @@ namespace Yc
         }
         static void link_impl(edge_proxy to, node_proxy child)noexcept
         {
-            if (child)
-            {
-                as_node(child.node_).adopt();
-            }
             to.child_slot() = child.node_;
             if (child)
             {
@@ -1351,7 +1347,10 @@ namespace Yc
         {
             if (this != &other)
             {
-                clear();
+                if (!empty())
+                {
+                    clear();
+                }
                 swap(other);
             }
             return *this;

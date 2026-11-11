@@ -29,6 +29,8 @@ namespace Yc
 {
     template<class T, class Alloc>
     class parent_aware_binary_tree;
+    template<class T, class Compare, class Alloc>
+    class rb_set;
     namespace details
     {
         // 保留旧的内部名字；新的节点钩子由侵入式层提供。
@@ -167,6 +169,11 @@ namespace Yc
             {
                 return e_;
             }
+            parent_aware_binary_tree_edge_const_proxy(
+                parent_aware_binary_tree_node_const_proxy<T, vptr> p,
+                bool left_child)noexcept;
+            template<class T1, class C1, class A1>
+            friend class Yc::rb_set;
         public:
             parent_aware_binary_tree_edge_const_proxy() = default;
             parent_aware_binary_tree_edge_const_proxy(
@@ -448,11 +455,28 @@ namespace Yc
             friend bool operator==(parent_aware_binary_tree_node_const_proxy,
                 parent_aware_binary_tree_node_const_proxy)noexcept = default;
             friend struct std::hash<parent_aware_binary_tree_node_const_proxy>;
+            friend class parent_aware_binary_tree_edge_const_proxy<T, vptr>;
             template<class T1, class Alloc1>
             friend class Yc::parent_aware_binary_tree;
             using value_type = T;
             using reference = const T&;
         };
+    }
+}
+
+namespace Yc
+{
+    namespace details
+    {
+        template<class T, class vptr>
+        parent_aware_binary_tree_edge_const_proxy<T, vptr>::
+            parent_aware_binary_tree_edge_const_proxy(
+                parent_aware_binary_tree_node_const_proxy<T, vptr> p,
+                bool left_child)noexcept
+            : e_{ intrusive_parent_aware_binary_tree_edge_proxy<vptr>{
+                    p.intrusive(), left_child } }
+        {
+        }
     }
 }
 
@@ -842,7 +866,8 @@ namespace Yc
                 guard.ptr = nullptr;
             }
             parent_aware_binary_tree ret{ alloc };
-            ret.tree_ = intrusive_tree_type::insert(p.intrusive(), new_node);
+            auto old = intrusive_tree_type::insert(p.intrusive(), new_node);
+            ret.tree_.swap(old);
             return ret;
         }
         parent_aware_binary_tree insert(edge_const_proxy p, const T& v)
