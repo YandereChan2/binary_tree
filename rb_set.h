@@ -46,6 +46,7 @@ namespace Yc
         {
             rb_set tmp{ other };
             swap(tmp);
+            return *this;
         }
 
         rb_set(rb_set&& other) :sz{ other.sz }, tree{
@@ -58,6 +59,7 @@ namespace Yc
         {
             rb_set tmp{ std::move(other) };
             swap(tmp);
+            return *this;
         }
 
     private:
@@ -178,26 +180,31 @@ namespace Yc
         }
 
         template<class... Args>
-        void emplace_impl(edge_const_proxy p, Args&&... args)
+        node_const_proxy emplace_impl(edge_const_proxy p, Args&&... args)
         {
             auto tmp = tree.emplace(p, std::forward<Args>(args)...);
+            node_const_proxy inserted{ p };
             ++sz;
             insert_post(p);
             if (!tmp.empty())
             {
                 std::unreachable();
             }
+            return inserted;
         }
 
-        void insert_node_impl(edge_const_proxy p, tree_type& node)noexcept
+        node_const_proxy insert_node_impl(
+            edge_const_proxy p, tree_type& node)noexcept
         {
             auto tmp = tree.splice(p, node);
+            node_const_proxy inserted{ p };
             ++sz;
             insert_post(p);
             if (!tmp.empty())
             {
                 std::unreachable();
             }
+            return inserted;
         }
 
         void erase_impl(edge_const_proxy n)noexcept
@@ -403,8 +410,8 @@ namespace Yc
             {
                 return std::pair<iterator, bool>{ iterator{ node_const_proxy{ p } }, false };
             }
-            emplace_impl(p, value);
-            return std::pair<iterator, bool>{ iterator{ node_const_proxy{ p } }, true };
+            const node_const_proxy inserted = emplace_impl(p, value);
+            return std::pair<iterator, bool>{ iterator{ inserted }, true };
         }
 
         std::pair<iterator, bool> insert(value_type&& value)
@@ -414,8 +421,8 @@ namespace Yc
             {
                 return std::pair<iterator, bool>{ iterator{ node_const_proxy{ p } }, false };
             }
-            emplace_impl(p, std::move(value));
-            return std::pair<iterator, bool>{ iterator{ node_const_proxy{ p } }, true };
+            const node_const_proxy inserted = emplace_impl(p, std::move(value));
+            return std::pair<iterator, bool>{ iterator{ inserted }, true };
         }
 
         template< class... Args >
@@ -430,12 +437,12 @@ namespace Yc
             }
             else
             {
-                insert_node_impl(p, tmp);
+                const node_const_proxy inserted = insert_node_impl(p, tmp);
                 if (!tmp.empty())
                 {
                     std::unreachable();
                 }
-                return std::pair<iterator, bool>{ iterator{ node_const_proxy{ p } }, true };
+                return std::pair<iterator, bool>{ iterator{ inserted }, true };
             }
         }
 
