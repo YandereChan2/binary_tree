@@ -50,7 +50,7 @@
 | 签名 | 说明 |
 |---|---|
 | `binary_tree cut(edge_const_proxy p) noexcept` | 把 `p` 处子树摘下来，返回持有它的新树；原槽位置空 |
-| `void erase(edge_const_proxy p) noexcept` | 删除 `p` 处节点**及其整棵子树**（迭代实现） |
+| `void erase(edge_const_proxy p) noexcept` | 删除 `p` 处节点**及其整棵子树** |
 | `void clear() noexcept` | `erase(root())` |
 | `template<class... Args> binary_tree emplace(edge_const_proxy p, Args&&... args)` | 在 `p` 处原地构造，**返回被顶掉的旧子树** |
 | `binary_tree insert(edge_const_proxy p, const T& v)` | `emplace(p, v)` |

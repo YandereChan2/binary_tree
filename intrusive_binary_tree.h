@@ -686,24 +686,36 @@ namespace Yc
         static void erase(edge_proxy e, Deleter del)noexcept
         {
             node_pointer& place = slot(e);
-            node_pointer root = place;
-            while (root)
+            if (!place)
             {
-                if (root->left_)
+                return;
+            }
+            while (true)
+            {
+                node_base& n = *place;
+                const bool has_l = static_cast<bool>(n.left_);
+                const bool has_r = static_cast<bool>(n.right_);
+                if (!has_l && !has_r)
                 {
-                    // 右旋把左孩子提到根，逐步摊平成只有右孩子的链。
-                    node_pointer left = root->left_;
-                    root->left_ = left->right_;
-                    left->right_ = root;
-                    root = left;
+                    node_pointer victim = std::exchange(place, node_pointer{});
+                    victim->detach();
+                    del(victim);
+                    return;
+                }
+                if (has_r)
+                {
+                    erase(edge_proxy{ n, true }, del);
+                    node_pointer right = std::exchange(n.right_, node_pointer{});
+                    node_pointer victim = std::exchange(place, right);
+                    victim->detach();
+                    del(victim);
                     continue;
                 }
-                node_pointer next = root->right_;
-                root->detach();
-                del(root);
-                root = next;
+                node_pointer left_child = std::exchange(n.left_, node_pointer{});
+                node_pointer victim = std::exchange(place, left_child);
+                victim->detach();
+                del(victim);
             }
-            place = node_pointer{};
         }
         // 只拆结构、不销毁节点
         void clear()noexcept
