@@ -94,7 +94,8 @@ namespace Yc
             {
                 return tree.root();
             }
-            return edge_const_proxy{ last, last_left };
+            auto [le, re] = last.get_children();
+            return last_left ? le : re;
         }
 
         template<class U>

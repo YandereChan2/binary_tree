@@ -170,9 +170,6 @@ namespace Yc
                 : e_{ p.intrusive() }
             {
             }
-            parent_aware_binary_tree_edge_const_proxy(
-                parent_aware_binary_tree_node_const_proxy<T, vptr> p,
-                bool left_child)noexcept;
             bool valid()const noexcept
             {
                 return e_.valid();
@@ -447,28 +444,11 @@ namespace Yc
             friend bool operator==(parent_aware_binary_tree_node_const_proxy,
                 parent_aware_binary_tree_node_const_proxy)noexcept = default;
             friend struct std::hash<parent_aware_binary_tree_node_const_proxy>;
-            friend class parent_aware_binary_tree_edge_const_proxy<T, vptr>;
             template<class T1, class Alloc1>
             friend class Yc::parent_aware_binary_tree;
             using value_type = T;
             using reference = const T&;
         };
-    }
-}
-
-namespace Yc
-{
-    namespace details
-    {
-        template<class T, class vptr>
-        parent_aware_binary_tree_edge_const_proxy<T, vptr>::
-            parent_aware_binary_tree_edge_const_proxy(
-                parent_aware_binary_tree_node_const_proxy<T, vptr> p,
-                bool left_child)noexcept
-            : e_{ intrusive_parent_aware_binary_tree_edge_proxy<vptr>{
-                    p.intrusive(), left_child } }
-        {
-        }
     }
 }
 

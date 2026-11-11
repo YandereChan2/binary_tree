@@ -20,13 +20,8 @@ proxy()noexcept;
 edge_const_proxy(edge_proxy p)noexcept;
 ```
 
-```C++
-edge_const_proxy(node_const_proxy parent, bool left_child)noexcept;
-```
-
 - 默认构造得到无效边；
-- `edge_const_proxy` 可由 `edge_proxy` 隐式构造，二者共享槽位；
-- `edge_const_proxy` 可由父节点的只读代理与方向构造子 _树位置_。
+- `edge_const_proxy` 可由 `edge_proxy` 隐式构造，二者共享槽位。
 
 ## 成员类型
 
