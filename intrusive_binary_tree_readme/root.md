@@ -5,7 +5,11 @@ edge_proxy root()noexcept; //(1)
 ```
 
 ```C++
-edge_proxy root()const noexcept; //(2)
+edge_const_proxy root()const noexcept; //(2)
+```
+
+```C++
+edge_const_proxy croot()const noexcept; //(3)
 ```
 
 返回指代根 _树位置_ 的代理。
@@ -21,7 +25,8 @@ edge_proxy root()const noexcept; //(2)
 
 ## 返回值
 
-指代根 _树位置_ 的 `edge_proxy`。
+指代根 _树位置_ 的代理；非 const 版本返回 `edge_proxy`，const 版本和 `croot` 返回
+`edge_const_proxy`。
 
 ## 复杂度
 

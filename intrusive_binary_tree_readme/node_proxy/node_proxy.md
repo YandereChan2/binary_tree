@@ -3,7 +3,7 @@
 指代一棵 _二叉树_，并提供导航与访问。
 
 `intrusive_binary_tree_node_proxy` 对应不可向上导航版本；
-`intrusive_parent_aware_binary_tree_node_proxy` 额外提供 `go_up` / `get_parent` / `get_edge`。
+`intrusive_parent_aware_binary_tree_node_proxy` 额外提供 `go_up` / `get_parent`。
 
 ## 构造函数
 
@@ -20,10 +20,15 @@ explicit proxy(
     intrusive_parent_aware_binary_tree_virtual_node_base<vptr>& n)noexcept; //(3) 仅可向上导航版本
 ```
 
+```C++
+explicit proxy(edge_proxy e)noexcept; //(4)
+```
+
 - (1) 空代理；
 - (2) 不可向上导航版本：由 _二叉树_ 的侵入式类型引用构造；
 - (3) 可向上导航版本：真实 _二叉树_ 或 `parent_of_nroot()` 返回的 _虚拟二叉树_ 都可以构造。
   _虚拟二叉树_ 只能用于导航，不能 `operator*`。
+- (4) 由边代理得到该 _树位置_ 上的 _二叉树_；空 _树位置_ 得到空代理。
 
 ## 成员函数
 
@@ -90,30 +95,22 @@ proxy get_parent()const noexcept; // 仅可向上导航版本
 返回孩子 / 父 _二叉树_ 的代理。调用者需保证当前代理非空；可向上导航版本的
 _虚拟二叉树_ 只能取 `get_left`。
 
-### get_edge（仅可向上导航版本）
-
-```C++
-edge_proxy get_edge()const noexcept;
-```
-
-由一棵真实 _二叉树_ 得到它所在的 _树位置_（根 _二叉树_ 得到指向 _虚拟二叉树_ 的边）。
-对 _虚拟二叉树_ 调用是未定义行为。
-
 ### get_children
 
 ```C++
 std::pair<edge_proxy, edge_proxy> get_children()const noexcept;
 ```
 
-返回左右孩子所在的 _树位置_ 的代理。调用者需保证当前代理非空。
+返回左右孩子所在的 _树位置_。调用者需保证当前代理非空。
 
-### is_leaf
+### operator edge_proxy（仅可向上导航版本）
 
 ```C++
-bool is_leaf()const noexcept;
+operator edge_proxy()const noexcept;
 ```
 
-空代理或没有孩子的 _二叉树_ 返回 `true`。可向上导航版本的 _虚拟二叉树_ 不应调用。
+由一棵真实 _二叉树_ 得到它所在的 _树位置_；根 _二叉树_ 得到指向 _虚拟二叉树_ 的边。
+对 _虚拟二叉树_ 调用是无效操作。
 
 ## 非成员函数
 

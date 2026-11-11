@@ -3,9 +3,13 @@
 ```C++
 template<class F>
 F for_each(F f)noexcept(/* 见下文 */);
+
+template<class F>
+F for_each(F f)const noexcept(/* 见下文 */);
 ```
 
-中序遍历整棵树，对每棵 _二叉树_ 的侵入式类型引用调用 `f`。
+中序遍历整棵树，对每棵 _二叉树_ 的侵入式类型引用调用 `f`。非 const 版本传入
+`node_base&`，const 版本传入 `const node_base&`。
 
 侵入式层不知道 `T`，因此 `f` 接收的是 _二叉树_ 的侵入式类型引用：
 
@@ -40,7 +44,12 @@ auto acc = tree.for_each(accumulator{});
 `noexcept` 规格等价于：
 
 ```C++
+// 非 const
 noexcept(std::is_nothrow_invocable_v<F&, node_base&> &&
+         std::is_nothrow_move_constructible_v<F>)
+
+// const
+noexcept(std::is_nothrow_invocable_v<F&, const node_base&> &&
          std::is_nothrow_move_constructible_v<F>)
 ```
 

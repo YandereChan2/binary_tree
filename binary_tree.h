@@ -61,8 +61,7 @@ namespace Yc
             using node_type = binary_tree_node<T, vptr>;
 
             intrusive_edge e_{};
-        public:
-            binary_tree_edge_proxy() = default;
+        private:
             binary_tree_edge_proxy(intrusive_edge e)noexcept : e_{ e }
             {
             }
@@ -70,6 +69,8 @@ namespace Yc
             {
                 return e_;
             }
+        public:
+            binary_tree_edge_proxy() = default;
             bool valid()const noexcept
             {
                 return e_.valid();
@@ -156,18 +157,18 @@ namespace Yc
             {
                 return binary_tree_edge_const_proxy{ e };
             }
-        public:
-            binary_tree_edge_const_proxy() = default;
             binary_tree_edge_const_proxy(intrusive_edge e)noexcept : e_{ e }
-            {
-            }
-            binary_tree_edge_const_proxy(binary_tree_edge_proxy<T, vptr> p)noexcept
-                : e_{ p.intrusive() }
             {
             }
             intrusive_edge intrusive()const noexcept
             {
                 return e_;
+            }
+        public:
+            binary_tree_edge_const_proxy() = default;
+            binary_tree_edge_const_proxy(binary_tree_edge_proxy<T, vptr> p)noexcept
+                : e_{ p.intrusive() }
+            {
             }
             bool valid()const noexcept
             {
@@ -250,18 +251,19 @@ namespace Yc
             using node_type = binary_tree_node<T, vptr>;
 
             intrusive_node n_{};
-        public:
-            binary_tree_node_proxy() = default;
+        private:
             binary_tree_node_proxy(intrusive_node n)noexcept : n_{ n }
-            {
-            }
-            binary_tree_node_proxy(binary_tree_edge_proxy<T, vptr> p)noexcept
-                : n_{ p.intrusive().get_node() }
             {
             }
             intrusive_node intrusive()const noexcept
             {
                 return n_;
+            }
+        public:
+            binary_tree_node_proxy() = default;
+            binary_tree_node_proxy(binary_tree_edge_proxy<T, vptr> p)noexcept
+                : n_{ p.intrusive() }
+            {
             }
             bool null()const noexcept
             {
@@ -299,9 +301,10 @@ namespace Yc
             }
             std::pair<binary_tree_edge_proxy<T, vptr>, binary_tree_edge_proxy<T, vptr>> get_children()const noexcept
             {
-                auto [l, r] = n_.get_children();
-                return { binary_tree_edge_proxy<T, vptr>{l},
-                         binary_tree_edge_proxy<T, vptr>{r} };
+                return { binary_tree_edge_proxy<T, vptr>{
+                             intrusive_binary_tree_edge_proxy<vptr>{ n_, true } },
+                         binary_tree_edge_proxy<T, vptr>{
+                             intrusive_binary_tree_edge_proxy<vptr>{ n_, false } } };
             }
             friend bool operator==(binary_tree_node_proxy l, binary_tree_node_proxy r)noexcept
             {
@@ -342,22 +345,23 @@ namespace Yc
             using node_type = binary_tree_node<T, vptr>;
 
             intrusive_node n_{};
-        public:
-            binary_tree_node_const_proxy() = default;
+        private:
             binary_tree_node_const_proxy(intrusive_node n)noexcept : n_{ n }
-            {
-            }
-            binary_tree_node_const_proxy(binary_tree_edge_const_proxy<T, vptr> p)noexcept
-                : n_{ p.intrusive().get_node() }
-            {
-            }
-            binary_tree_node_const_proxy(binary_tree_node_proxy<T, vptr> p)noexcept
-                : n_{ p.intrusive() }
             {
             }
             intrusive_node intrusive()const noexcept
             {
                 return n_;
+            }
+        public:
+            binary_tree_node_const_proxy() = default;
+            binary_tree_node_const_proxy(binary_tree_edge_const_proxy<T, vptr> p)noexcept
+                : n_{ p.intrusive() }
+            {
+            }
+            binary_tree_node_const_proxy(binary_tree_node_proxy<T, vptr> p)noexcept
+                : n_{ p.intrusive() }
+            {
             }
             bool null()const noexcept
             {
@@ -395,15 +399,18 @@ namespace Yc
             }
             std::pair<binary_tree_edge_const_proxy<T, vptr>, binary_tree_edge_const_proxy<T, vptr>> get_children()const noexcept
             {
-                auto [l, r] = n_.get_children();
-                return { binary_tree_edge_const_proxy<T, vptr>{l},
-                         binary_tree_edge_const_proxy<T, vptr>{r} };
+                return { binary_tree_edge_const_proxy<T, vptr>{
+                             intrusive_binary_tree_edge_proxy<vptr>{ n_, true } },
+                         binary_tree_edge_const_proxy<T, vptr>{
+                             intrusive_binary_tree_edge_proxy<vptr>{ n_, false } } };
             }
             friend bool operator==(binary_tree_node_const_proxy l, binary_tree_node_const_proxy r)noexcept
             {
                 return l.n_ == r.n_;
             }
             friend struct std::hash<binary_tree_node_const_proxy>;
+            template<class T1, class Alloc1>
+            friend class Yc::binary_tree;
             using value_type = T;
             using reference = const T&;
         };
@@ -679,11 +686,11 @@ namespace Yc
         }
         edge_const_proxy root()const noexcept
         {
-            return edge_const_proxy{ tree_.root() };
+            return edge_const_proxy{ const_cast<binary_tree*>(this)->tree_.root() };
         }
         edge_const_proxy croot()const noexcept
         {
-            return edge_const_proxy{ tree_.root() };
+            return edge_const_proxy{ const_cast<binary_tree*>(this)->tree_.root() };
         }
         node_proxy nroot()noexcept
         {
@@ -691,17 +698,17 @@ namespace Yc
         }
         node_const_proxy nroot()const noexcept
         {
-            return node_const_proxy{ tree_.nroot() };
+            return node_const_proxy{ const_cast<binary_tree*>(this)->tree_.nroot() };
         }
         node_const_proxy cnroot()const noexcept
         {
-            return node_const_proxy{ tree_.nroot() };
+            return node_const_proxy{ const_cast<binary_tree*>(this)->tree_.nroot() };
         }
         // 切割：将 p 指向的子树从原树分离，返回一棵包含该子树的新树
         binary_tree cut(edge_const_proxy p)noexcept
         {
             binary_tree ret{ alloc };
-            ret.tree_.set_root(tree_.cut(p.intrusive()));
+            ret.tree_ = tree_.cut(p.intrusive());
             return ret;
         }
         // 删除指定边上的节点及其所有子节点
@@ -791,8 +798,8 @@ namespace Yc
                     std::forward<Args>(args)...);
                 guard.ptr = nullptr;
             }
-            binary_tree ret{ cut(p) };
-            tree_.link(p.intrusive(), tree_.node(new_node));
+            binary_tree ret{ alloc };
+            ret.tree_ = intrusive_tree_type::insert(p.intrusive(), new_node);
             return ret;
         }
         binary_tree insert(edge_const_proxy p, const T& v)
@@ -806,8 +813,9 @@ namespace Yc
         // 拼接：将 from 子树移动到 to 位置，原 to 子树作为结果返回
         binary_tree splice(edge_const_proxy to, edge_const_proxy from)noexcept
         {
-            binary_tree ret{ cut(to) };
-            intrusive_tree_type::splice(to.intrusive(), from.intrusive());
+            binary_tree ret{ alloc };
+            ret.tree_ = intrusive_tree_type::splice(
+                to.intrusive(), from.intrusive());
             return ret;
         }
         binary_tree splice(edge_const_proxy p, binary_tree& tree)noexcept

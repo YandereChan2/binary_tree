@@ -30,6 +30,8 @@ proxy(intrusive_parent_aware_binary_tree_virtual_node_base<vptr>& parent,
 - (3) 由父 _二叉树_ 的代理与方向构造子 _树位置_；
 - (4) 可向上导航版本：父可以是真实 _二叉树_，也可以是 _虚拟二叉树_（根 _树位置_ 永远是左）。
 
+由 _二叉树_ 得到边的操作使用 [`node_proxy` 的转换函数](../node_proxy/node_proxy.md)。
+
 ## 成员函数
 
 ### valid
@@ -109,14 +111,6 @@ std::pair<proxy, proxy> get_children()const noexcept;
 ```
 
 返回当前 _二叉树_ 的左右子 _树位置_。当前代理必须非空，否则行为未定义。
-
-### get_node
-
-```C++
-node_proxy get_node()const noexcept;
-```
-
-返回该 _树位置_ 上的 _二叉树_ 的代理。空 _树位置_ 返回空代理；无效代理是未定义行为。
 
 ### is_left（仅可向上导航版本）
 

@@ -20,7 +20,7 @@ class intrusive_parent_aware_binary_tree_node
 intrusive_binary_tree_node() = default;
 ```
 
-默认构造只建立一棵不处于任何树中的 _二叉树_；`T` 尚未构造。
+默认构造只建立一棵**脱管**的 _二叉树_；`T` 尚未构造。
 
 ### construct_value
 
@@ -54,12 +54,15 @@ const T& value()const noexcept;
 
 `T` 的构造 / 析构与把该 _二叉树_ 挂到树上 / 从树上摘下是分开的：
 
-1. 创建该类型的对象；
+1. 创建该类型的对象（此时 _二叉树_ 脱管）；
 2. 用 `construct_value` 构造 `T`；
-3. 把该 _二叉树_ 挂到树上；
-4. 从树上摘下；
+3. 把该 _二叉树_ 挂到树上（纳管）；
+4. 用 [`erase`](erase.md) / [`clear`](clear.md) 从树上摘下，使其重新脱管；
 5. 用 `destroy_value` 析构 `T`；
 6. 销毁该对象。
+
+若第 6 步之前 _二叉树_ 仍处于纳管状态且还有孩子，析构会导致未定义行为。
+纳管但没有孩子的 _二叉树_ 可以析构。
 
 ## 复杂度
 

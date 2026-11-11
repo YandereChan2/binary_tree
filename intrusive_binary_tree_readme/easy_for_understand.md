@@ -151,6 +151,7 @@ Linux 内核里的 `container_of` 就是这个思路：
 struct task : Yc::intrusive_binary_tree_node_base<>
 {
     int id;
+    explicit task(int i) : id(i) {}
 };
 
 task t{...};
@@ -190,6 +191,29 @@ _虚拟二叉树_：它只有左 _树位置_，其左 _树位置_ 上是根 _二
 - 根 _树位置_ 可以和其他 _树位置_ 使用同一套操作；
 - 用户可以通过 [`parent_of_nroot()`](parent_of_nroot.md) 取得这棵 _虚拟二叉树_。
 
+## 纳管与脱管
+
+侵入式二叉树还给每棵 _二叉树_ 增加了状态：
+
+- **脱管**：默认状态。`left` / `right`（以及可向上导航版本的 `parent`）都指向自身，
+  表示它不属于任何树，也没有孩子；
+- **纳管**：已经被 [`insert`](insert.md) 接入树，链接字段由树操作维护。
+
+脱管状态的“指向自身”有两个作用：
+
+- 一眼就能看出它还没有被任何树接管；
+- 销毁一个脱管的 _二叉树_ 不会影响其他 _二叉树_，因此是安全的。
+
+纳管的 _二叉树_ 如果有孩子，直接析构会留下指向它的父 _树位置_，所以是未定义行为。
+要销毁一棵子树，应使用树的删除接口：
+
+- [`erase(pos)`](erase.md)：拆掉子树，让所有 _二叉树_ 脱管；
+- [`erase(pos, deleter)`](erase.md)：脱管后再对每棵 _二叉树_ 调用回收器；
+- [`clear`](clear.md)：拆掉整棵树，让所有 _二叉树_ 脱管。
+
+_二叉树_ 不能自己脱管；脱管只能通过 [`erase`](erase.md) / [`clear`](clear.md)。
+树的 [`cut`](cut.md) 则把子树交给返回的独立树继续管理，不会直接让它脱管。
+
 ## proxy 建模的设计来源
 
 把上面的概念对应到本库：
@@ -227,6 +251,7 @@ _虚拟二叉树_：它只有左 _树位置_，其左 _树位置_ 上是根 _二
 struct task : Yc::intrusive_parent_aware_binary_tree_node_base<>
 {
     int id;
+    explicit task(int i) : id(i) {}
 };
 
 Yc::basic_intrusive_parent_aware_binary_tree<> tree;
@@ -234,14 +259,16 @@ Yc::basic_intrusive_parent_aware_binary_tree<> tree;
 task root{1};
 task child{2};
 
-tree.set_root(tree.node(root));
-Yc::basic_intrusive_parent_aware_binary_tree<>::link(
-    tree.root().get_left(), tree.node(child));
+Yc::basic_intrusive_parent_aware_binary_tree<>::insert(tree.root(), root);
+Yc::basic_intrusive_parent_aware_binary_tree<>::insert(
+    tree.root().get_left(), child);
 
 auto p = tree.nroot().get_left();      // 指代 child 这棵 _二叉树_
 auto& c = static_cast<task&>(*p);      // 回到完整的 task 对象
 assert(c.id == 2);
 assert(p.get_parent() == tree.nroot());
+
+tree.clear(); // root / child 都脱管，可以安全析构
 ```
 
 ## 与非侵入式容器的关系

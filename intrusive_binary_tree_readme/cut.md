@@ -1,14 +1,20 @@
-# `Yc::basic_intrusive_binary_tree<vptr>::cut`
+# `Yc::basic_intrusive_binary_tree<vptr>::cut` , `Yc::basic_intrusive_parent_aware_binary_tree<vptr>::cut`
 
 ```C++
-static node_proxy cut(edge_proxy e)noexcept;
+static basic_intrusive_binary_tree cut(edge_proxy e)noexcept;
 ```
 
-摘下 `e` 所指代的 _树位置_ 上的整棵子树，并使该 _树位置_ 变空。
-子树自身的父子关系保持不变。
+```C++
+static basic_intrusive_parent_aware_binary_tree cut(edge_proxy e)noexcept;
+```
 
-可向上导航版本没有同名的 `cut`：它的边已经带有父 _二叉树_ 信息，直接使用
-[`unlink`](unlink.md) 完成同样的操作，并额外断开子树根与父 _二叉树_ 的关系。
+摘下 `e` 所指代的 _树位置_ 上的整棵子树，并把它作为一棵独立的树返回；
+原 _树位置_ 变空。
+
+- 返回的树继续管理这棵子树；子树原有的父子关系保持不变；
+- 可向上导航版本会把子树根的父设为返回树的 _虚拟二叉树_；
+- 如果 `e` 原本为空，返回空树；
+- 本函数不销毁、不脱管任何 _二叉树_。
 
 ## 参数
 
@@ -18,7 +24,7 @@ static node_proxy cut(edge_proxy e)noexcept;
 
 ## 返回值
 
-被摘下的子树根的代理；`e` 为空时返回空代理。
+包含被摘下子树的独立树；`e` 为空时返回空树。
 
 ## 复杂度
 
@@ -31,12 +37,20 @@ static node_proxy cut(edge_proxy e)noexcept;
 ## 示例
 
 ```C++
+// 不可向上导航版本
 auto sub = tree.cut(tree.root().get_right());
+assert(sub.nroot());
+sub.clear();
 
-Yc::basic_intrusive_binary_tree<> other;
-other.set_root(sub);
+// 可向上导航版本
+Yc::basic_intrusive_parent_aware_binary_tree<> ptree;
+// ... 建树 ...
+auto psub = ptree.cut(ptree.root().get_right());
+assert(psub.nroot().get_parent() == psub.parent_of_nroot());
+psub.clear();
 ```
 
 ## 备注
 
-本函数不销毁 _二叉树_。返回的子树需要由调用方接管或销毁。
+返回的树是一个真正的树对象，可以直接继续使用。
+要销毁被摘下的子树，应对返回的树使用 [`erase`](erase.md) / [`clear`](clear.md)。

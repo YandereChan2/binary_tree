@@ -8,6 +8,16 @@ void swap(basic_intrusive_binary_tree& other)noexcept;
 void swap(basic_intrusive_parent_aware_binary_tree& other)noexcept;
 ```
 
+```C++
+template<class vptr>
+void swap(basic_intrusive_binary_tree<vptr>&,
+          basic_intrusive_binary_tree<vptr>&)noexcept;
+
+template<class vptr>
+void swap(basic_intrusive_parent_aware_binary_tree<vptr>&,
+          basic_intrusive_parent_aware_binary_tree<vptr>&)noexcept;
+```
+
 交换两棵树的根，不搬移、不复制任何 _二叉树_。
 
 可向上导航版本在交换后会把两边的根 _二叉树_ 的父分别修正为各自树的 _虚拟二叉树_。
@@ -35,10 +45,12 @@ void swap(basic_intrusive_parent_aware_binary_tree& other)noexcept;
 ```C++
 my_binary_tree x, y;
 Yc::basic_intrusive_binary_tree<> a, b;
-a.set_root(a.node(x));
-b.set_root(b.node(y));
-a.swap(b);
+Yc::basic_intrusive_binary_tree<>::insert(a.root(), x);
+Yc::basic_intrusive_binary_tree<>::insert(b.root(), y);
+Yc::swap(a, b);
 assert(a.nroot() == a.node(y));
+a.clear();
+b.clear();
 ```
 
 ## 备注

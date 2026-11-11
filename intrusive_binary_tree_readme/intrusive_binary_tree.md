@@ -36,8 +36,10 @@ _树位置_ 以及（可选的）用户数据。区别在于：**每棵 _二叉�
 |成员类型|定义|
 |-:|:-|
 |[`node_base`](node_base.md)|侵入式二叉树的类型；用户类型继承它|
-|[`node_proxy`](node_proxy/node_proxy.md)|_二叉树_ 的代理对象|
-|[`edge_proxy`](edge_proxy/edge_proxy.md)|_树位置_ 的代理对象|
+|[`node_proxy`](node_proxy/node_proxy.md)|_二叉树_ 的可修改代理|
+|[`edge_proxy`](edge_proxy/edge_proxy.md)|_树位置_ 的可修改代理|
+|[`node_const_proxy`](node_const_proxy.md)|_二叉树_ 的只读代理|
+|[`edge_const_proxy`](edge_const_proxy.md)|_树位置_ 的只读代理|
 |[`intrusive_binary_tree_node` / `intrusive_parent_aware_binary_tree_node`](data_node.md)|同时存放 `T` 与侵入式链接的类型|
 
 ## 成员函数
@@ -62,14 +64,12 @@ _树位置_ 以及（可选的）用户数据。区别在于：**每棵 _二叉�
 
 | | |
 |:-|:-|
-|[`set_root` / `release_root`](set_root.md)|接管 / 摘下整棵树|
-|[`link`](link.md)|把子树挂到 _树位置_ 上|
-|[`unlink`](unlink.md)|可向上导航版本：摘下子树并断开父 _二叉树_|
-|[`cut`](cut.md)|不可向上导航版本：摘下 _树位置_ 上的子树|
-|[`splice`](splice.md)|搬移子树|
+|[`insert`](insert.md)|把脱管的 _二叉树_ 插到 _树位置_，换出原子树|
+|[`cut`](cut.md)|两套树：摘下子树并作为独立树返回|
+|[`splice`](splice.md)|搬移子树，返回被换出的旧树|
 |[`swap_sub_tree`](swap_sub_tree.md)|交换两个 _树位置_ 上的子树|
 |[`swap_node`](swap_node.md)|交换两棵 _二叉树_（值互换、形状不变）|
-|[`erase`](erase.md)|拆子树，并对每棵 _二叉树_ 调用回收器|
+|[`erase`](erase.md)|拆子树并让所有 _二叉树_ 脱管；可带回收器|
 |[`clear`](clear.md)|只拆树，不销毁 _二叉树_|
 
 ### 操作
@@ -102,15 +102,21 @@ _树位置_ 以及（可选的）用户数据。区别在于：**每棵 _二叉�
 
 ## 生命周期
 
-- 树对象不拥有 _二叉树_：析构树对象不会销毁任何 _二叉树_。
-- 销毁 _二叉树_ 前必须先把它们从树上摘下：`cut` / `unlink` / `erase` / `clear`。
-- `erase` 对每棵 _二叉树_ 调用回收器；`clear` 只拆树，不销毁 _二叉树_。
-- 可向上导航版本由树操作自动维护父子关系；`set_root` 会把根 _二叉树_ 的父设为新树的
-  _虚拟二叉树_。
+- 每棵 _二叉树_ 默认处于**脱管**状态，所有链接字段指向自身。
+- `insert` 把脱管的 _二叉树_ 纳管；纳管且仍有孩子的 _二叉树_ 析构会导致未定义行为。
+  脱管的 _二叉树_，以及没有孩子的纳管 _二叉树_，可以正常析构。
+- 树对象不拥有 _二叉树_：析构树对象不会销毁、也不会自动脱管任何 _二叉树_。
+- 销毁整棵子树前，使用 `erase` / `clear` 让其中的所有 _二叉树_ 脱管。
+  `cut` 会把子树作为独立树返回，返回的树继续管理这棵子树。
+- `erase(pos)` 让子树中的所有 _二叉树_ 脱管；`erase(pos, deleter)` 还会对每棵脱管后的
+  _二叉树_ 调用回收器。回收器内不能修改 _二叉树_ 的状态。
+- `clear` 只拆树并让所有 _二叉树_ 脱管，不销毁 _二叉树_。
+- 可向上导航版本由树操作自动维护父子关系；`insert` 会把新根的父设为 `pos` 所在的
+  父 _二叉树_。
 
 ## 复杂度总览
 
-- `link` / `unlink` / `cut` / `splice` / `swap_sub_tree` / `swap_node` / 旋转：常数。
+- `insert` / `cut` / `splice` / `swap_sub_tree` / `swap_node` / 旋转：常数。
 - `erase` / `for_each` / `clear`：与涉及的 _二叉树_ 数量成线性关系。
 
 ## 示例
@@ -122,6 +128,7 @@ _树位置_ 以及（可选的）用户数据。区别在于：**每棵 _二叉�
 struct my_binary_tree : Yc::intrusive_binary_tree_node_base<>
 {
     int value;
+    explicit my_binary_tree(int v) : value(v) {}
 };
 
 int main()
@@ -130,15 +137,15 @@ int main()
     my_binary_tree a{1}, b{2}, c{3};
 
     tree t;
-    t.set_root(t.node(a));
-    tree::link(t.root().get_left(), t.node(b));
-    tree::link(t.root().get_right(), t.node(c));
+    tree::insert(t.root(), a);
+    tree::insert(t.root().get_left(), b);
+    tree::insert(t.root().get_right(), c);
 
     assert(static_cast<my_binary_tree&>(*t.nroot().get_left()).value == 2);
 
     auto sub = tree::cut(t.root().get_right());
-    assert(static_cast<my_binary_tree&>(*sub).value == 3);
-    tree::splice(t.root().get_right(), t.root().get_left());
+    assert(static_cast<my_binary_tree&>(*sub.nroot()).value == 3);
+    sub.clear();
 
     t.clear(); // 只拆树，各 _二叉树_ 仍然存活
 }
@@ -167,5 +174,5 @@ assert(t.nroot().get_parent() == t.parent_of_nroot());
 ## 自检
 
 [`test_intrusive_binary_tree.cpp`](../test_intrusive_binary_tree.cpp) 覆盖两套设施的
-proxy 导航、link/cut/splice、旋转、交换、erase/clear 的生命周期语义、遍历、移动和
+proxy 导航、insert/cut/splice、旋转、交换、erase/clear 的生命周期语义、遍历、移动和
 父子关系。
