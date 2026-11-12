@@ -60,7 +60,7 @@
 | `binary_tree splice(edge_const_proxy p, binary_tree&& tree) noexcept` | 同上 |
 | `static void swap_sub_tree(edge_const_proxy l, edge_const_proxy r) noexcept` | 交换两个槽位 |
 | `void swap(binary_tree& other) noexcept` | POCS 感知 |
-| `static void swap_node(edge_const_proxy l, edge_const_proxy r) noexcept` | 交换两个节点：净效果是**两个位置上的值互换、子树留在原位**；父子相邻不需要判断（先换槽位、再成对换孩子槽位，自指会被自动解掉） |
+| `static void swap_node(edge_const_proxy l, edge_const_proxy r) noexcept` | 交换两个节点：净效果是**两个位置上的值互换、子树留在原位**；父子相邻无需调用方提示（`parent_aware` 内部有相邻形态检查，`binary_tree` 走通用槽位交换） |
 
 ### 遍历
 
@@ -145,7 +145,9 @@
 
 ## 关于 `swap_node` 的父子相邻
 
-`swap_node` 只有"先换槽位、再成对交换两边孩子槽位"三步，**没有**相邻形态的专门分支，也不需要调用方给提示。父节点里那条指向孩子的槽位在第一步后会短暂自指，第三步正好把它解成"父节点上位、孩子落回原位"；四种相邻形态与不相邻形态结果一致（已用所有非空边两两组合的穷举测试覆盖）。把这两步的顺序反过来才会互指成环、丢节点。净语义是"两个位置上的值互换、子树留在原位"。
+`parent_aware` 的 `swap_node` 会先检查四种父子相邻形态，相邻时直接做指针手术，并维护 `parent` 链；不相邻时才走通用的"先换槽位、再成对交换两边孩子槽位"路径。`binary_tree` 的 `swap_node` 始终走通用路径。
+
+两种实现都不需要调用方给提示，四种相邻形态与不相邻形态的净语义一致：两个位置上的值互换、子树留在原位。以上路径均已用所有非空边两两组合的穷举测试覆盖。
 
 ---
 

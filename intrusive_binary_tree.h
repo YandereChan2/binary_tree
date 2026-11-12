@@ -1549,6 +1549,66 @@ namespace Yc
                 as_node(lp).parent_ = r.parent_;
             }
         }
+        // 父子相邻时直接做指针手术：child 取代 parent 的位置，
+        // parent 落回 child 原来的位置，并重新挂接两侧孩子。
+        static void swap_adjacent(
+            edge_proxy parent_edge, edge_proxy child_edge, bool child_is_left)noexcept
+        {
+            pointer p = parent_edge.child();
+            pointer c = child_edge.child();
+            const pointer up = as_node(p).parent_;
+
+            if (child_is_left)
+            {
+                pointer pr = as_node(p).right_;
+                pointer cl = c->left_;
+                pointer cr = as_node(c).right_;
+                as_node(p).left_ = cl;
+                as_node(p).right_ = cr;
+                as_node(p).parent_ = c;
+                as_node(c).left_ = p;
+                as_node(c).right_ = pr;
+                as_node(c).parent_ = up;
+                if (cl)
+                {
+                    as_node(cl).parent_ = p;
+                }
+                if (cr)
+                {
+                    as_node(cr).parent_ = p;
+                }
+                if (pr)
+                {
+                    as_node(pr).parent_ = c;
+                }
+            }
+            else
+            {
+                pointer pl = as_node(p).left_;
+                pointer cl = c->left_;
+                pointer cr = as_node(c).right_;
+                as_node(p).left_ = cl;
+                as_node(p).right_ = cr;
+                as_node(p).parent_ = c;
+                as_node(c).left_ = pl;
+                as_node(c).right_ = p;
+                as_node(c).parent_ = up;
+                if (cl)
+                {
+                    as_node(cl).parent_ = p;
+                }
+                if (cr)
+                {
+                    as_node(cr).parent_ = p;
+                }
+                if (pl)
+                {
+                    as_node(pl).parent_ = c;
+                }
+            }
+            parent_edge.child_slot() = c;
+        }
+
         // 交换两个位置上的节点，并成对交换两个节点的孩子槽位。
         static void swap_node(edge_proxy l, edge_proxy r)noexcept
         {
@@ -1556,9 +1616,33 @@ namespace Yc
             {
                 return;
             }
-            swap_sub_tree(l, r);
+
             pointer a = l.child();
             pointer b = r.child();
+            if (as_node(a).left_ == b)
+            {
+                swap_adjacent(l, r, true);
+                return;
+            }
+            if (as_node(a).right_ == b)
+            {
+                swap_adjacent(l, r, false);
+                return;
+            }
+            if (b->left_ == a)
+            {
+                swap_adjacent(r, l, true);
+                return;
+            }
+            if (as_node(b).right_ == a)
+            {
+                swap_adjacent(r, l, false);
+                return;
+            }
+
+            swap_sub_tree(l, r);
+            a = l.child();
+            b = r.child();
             if (a && b)
             {
                 pointer al = a->left_;
