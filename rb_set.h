@@ -220,7 +220,7 @@ namespace Yc
                 size_t old_cookie_n = n->cookie();
                 size_t old_cookie_q = q->cookie();
                 node_const_proxy saved_n = (node_const_proxy)n;
-                tree.swap_node(n, q);
+                tree.swap_node(n, q, Yc::check_right);
                 n->cookie() = old_cookie_n;
                 saved_n->cookie() = old_cookie_q;
                 n = (edge_const_proxy)saved_n;
