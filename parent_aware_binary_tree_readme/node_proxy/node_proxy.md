@@ -117,7 +117,9 @@ proxy get_parent()const noexcept;
 std::pair<edge(_const)_proxy, edge(_const)_proxy> get_children()const noexcept;
 ```
 
-获取指代其指代的 _二叉树_ 所保有的左右 _树位置_ 的两个 [_`edge`_](../edge_proxy/edge_proxy.md) 代理对象。如果其不[按语境转换](https://zh.cppreference.com/w/cpp/language/implicit_conversion)成 `true` 或者指代虚拟二叉树 ，那么行为[未定义](https://zh.cppreference.com/w/cpp/language/ub)。
+获取指代其指代的 _二叉树_ 所保有的左右 _树位置_ 的两个 [_`edge`_](../edge_proxy/edge_proxy.md) 代理对象。如果其不[按语境转换](https://zh.cppreference.com/w/cpp/language/implicit_conversion)成 `true`，那么行为[未定义](https://zh.cppreference.com/w/cpp/language/ub)。
+
+如果其指代 _虚拟二叉树_，本函数也可以调用：左元素是根 _树位置_ 的边；右元素是一条**不可使用**的边，不能解引用、导航或用于修改，但构造这两个边本身不会访问虚拟二叉树的右槽位。
 
 ## 非成员函数
 

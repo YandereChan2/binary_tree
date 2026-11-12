@@ -66,25 +66,30 @@ namespace Yc
         template<class U>
         edge_const_proxy find_impl(U&& u)const noexcept
         {
+            using edge_pair = std::pair<edge_const_proxy, edge_const_proxy>;
+            using child_member = edge_const_proxy edge_pair::*;
+            static constexpr child_member left_member = &edge_pair::first;
+            static constexpr child_member right_member = &edge_pair::second;
+
             node_const_proxy n{}; // 候选的节点
             node_const_proxy r = tree.cnroot();
-            node_const_proxy last{};
-            bool last_left = true;
+            node_const_proxy last = tree.parent_of_cnroot();
+            child_member last_child = left_member;
             while (r)
             {
                 last = r;
                 if (comp(r->value(), u))
                 {
                     // r比查找值小，去右子树
-                    last_left = false;
-                    r = r.get_right();
+                    last_child = right_member;
+                    r.go_right();
                 }
                 else
                 {
                     // r >= 查找值，记录候选
                     n = r;
-                    last_left = true;
-                    r = r.get_left();
+                    last_child = left_member;
+                    r.go_left();
                 }
             }
             // 显然n >= 查找值，如果同时查找值 >= n，那么按照相等处理
@@ -92,12 +97,7 @@ namespace Yc
             {
                 return static_cast<edge_const_proxy>(n);
             }
-            if (!last)
-            {
-                return tree.root();
-            }
-            auto [le, re] = last.get_children();
-            return last_left ? le : re;
+            return last.get_children().*last_child;
         }
 
         template<class U>
@@ -127,28 +127,24 @@ namespace Yc
             return r;
         }
 
-        size_t color(edge_const_proxy p)const noexcept
+        size_t color(node_const_proxy p)const noexcept
         {
-            if (p.valid() && !p.null()) [[likely]]
-            {
-                return p->cookie();
-            }
-            return black;
+            return p.null() ? black : p->cookie();
         }
 
-        void insert_post(edge_const_proxy n)noexcept
+        void insert_post(node_const_proxy n)noexcept
         {
             n->cookie() = red;
-            while (n != tree.root())
+            while (n != tree.cnroot())
             {
-                edge_const_proxy p = n.get_parent();
+                node_const_proxy p = n.get_parent();
                 if (p->cookie() == black)
                     return;
 
-                edge_const_proxy g = p.get_parent();
-                auto [p1, p2] = g.get_children();
-                bool p_l = p == p1;
-                edge_const_proxy u = p_l ? p2 : p1;
+                node_const_proxy g = p.get_parent();
+                const bool p_l = g.get_left() == p;
+                const bool n_l = p.get_left() == n;
+                node_const_proxy u = p_l ? g.get_right() : g.get_left();
 
                 if (color(u) == red)
                 {
@@ -159,21 +155,20 @@ namespace Yc
                     continue;
                 }
 
-                bool n_l = n == p.get_left();
                 if (n_l != p_l)
                 {
                     if (n_l)
                         tree.right_rotate(p);
                     else
                         tree.left_rotate(p);
-                    n.go_up();
                 }
                 g->cookie() = red;
                 if (p_l)
                     tree.right_rotate(g);
                 else
                     tree.left_rotate(g);
-                g->cookie() = black;
+                // 旋转后新的子树根是 n（之字形）或 p（一字形），不是旧的 g。
+                (n_l != p_l ? n : p)->cookie() = black;
                 return;
             }
             n->cookie() = black;
@@ -185,7 +180,7 @@ namespace Yc
             auto tmp = tree.emplace(p, std::forward<Args>(args)...);
             node_const_proxy inserted{ p };
             ++sz;
-            insert_post(p);
+            insert_post(inserted);
             if (!tmp.empty())
             {
                 std::unreachable();
@@ -199,7 +194,7 @@ namespace Yc
             auto tmp = tree.splice(p, node);
             node_const_proxy inserted{ p };
             ++sz;
-            insert_post(p);
+            insert_post(inserted);
             if (!tmp.empty())
             {
                 std::unreachable();

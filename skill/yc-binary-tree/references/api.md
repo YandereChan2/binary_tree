@@ -193,7 +193,7 @@
 | `go_up()` | 自身引用 | **仅 `parent_aware`** |
 | `get_left()` / `get_right()` | 新节点代理 | |
 | `get_parent()` | 新节点代理 | **仅 `parent_aware`** |
-| `get_children()` | `pair<edge,edge>` | ⚠️ 返回的是**边**，不是节点代理 |
+| `get_children()` | `pair<edge,edge>` | ⚠️ 返回的是**边**，不是节点代理；虚拟根可调用，左为根槽位，右为不可使用的边 |
 | `operator==` | `bool` | 比较节点指针 |
 | `operator edge_proxy()` | | **仅 `parent_aware`**：由父指针重建出边 |
 
