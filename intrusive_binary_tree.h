@@ -541,6 +541,7 @@ namespace Yc
         {
             if (this != &other)
             {
+                clear();
                 root_ = std::exchange(other.root_, node_pointer{});
             }
             return *this;
@@ -1394,10 +1395,7 @@ namespace Yc
         {
             if (this != &other)
             {
-                if (!empty())
-                {
-                    clear();
-                }
+                clear();
                 swap(other);
             }
             return *this;

@@ -216,6 +216,22 @@ int main()
         moved.clear();
     }
 
+    // ---- 无父指针：移动赋值先拆掉原目标树 ----
+    {
+        plain_node a(1), b(2), c(3);
+        plain_tree src, dst;
+        plain_tree::insert(src.root(), a);
+        plain_tree::insert(src.root().get_left(), b);
+        plain_tree::insert(dst.root(), c);
+
+        dst = std::move(src);
+        assert(src.empty());
+        assert(shape(dst.nroot()) == "(1 (2 . .) .)");
+        assert((*plain_tree::node_proxy{ c }).is_detached());
+
+        dst.clear();
+    }
+
     // ---- 无父指针：erase / clear 不销毁节点 ----
     {
         int deleted = 0;
@@ -324,6 +340,23 @@ int main()
         check_parents(moved.nroot(), moved.parent_of_nroot());
         moved.clear();
         assert((*pa_tree::node_proxy{ a }).is_detached());
+    }
+
+    // ---- 带父指针：移动赋值先拆掉原目标树 ----
+    {
+        pa_node a(1), b(2), c(3);
+        pa_tree src, dst;
+        pa_tree::insert(src.root(), a);
+        pa_tree::insert(src.root().get_left(), b);
+        pa_tree::insert(dst.root(), c);
+
+        dst = std::move(src);
+        assert(src.empty());
+        assert(static_cast<pa_node&>(*dst.nroot()).v == 1);
+        check_parents(dst.nroot(), dst.parent_of_nroot());
+        assert((*pa_tree::node_proxy{ c }).is_detached());
+
+        dst.clear();
     }
 
     // ---- 带父指针：erase / clear ----
