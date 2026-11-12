@@ -53,6 +53,20 @@ namespace Yc
     template<class vptr = void*>
     class basic_intrusive_parent_aware_binary_tree;
 
+    // 相邻情形检查掩码。未指定的方向不会被探测，直接走通用交换路径。
+#ifndef YC_CHILD_CHECK_DEFINED
+#define YC_CHILD_CHECK_DEFINED
+    enum child_check
+    {
+        no_check = 0,
+        check_left = 1,
+        check_right = 2,
+        check_left_rev = 4,
+        check_right_rev = 8,
+        check_all = 15,
+    };
+#endif
+
     // ===================================================================
     // 无父指针：节点钩子与两个 proxy
     // ===================================================================
@@ -1610,7 +1624,8 @@ namespace Yc
         }
 
         // 交换两个位置上的节点，并成对交换两个节点的孩子槽位。
-        static void swap_node(edge_proxy l, edge_proxy r)noexcept
+        static void swap_node(
+            edge_proxy l, edge_proxy r, child_check chk = check_all)noexcept
         {
             if (l == r)
             {
@@ -1619,22 +1634,22 @@ namespace Yc
 
             pointer a = l.child();
             pointer b = r.child();
-            if (as_node(a).left_ == b)
+            if ((chk & check_left) && as_node(a).left_ == b)
             {
                 swap_adjacent(l, r, true);
                 return;
             }
-            if (as_node(a).right_ == b)
+            if ((chk & check_right) && as_node(a).right_ == b)
             {
                 swap_adjacent(l, r, false);
                 return;
             }
-            if (b->left_ == a)
+            if ((chk & check_left_rev) && b->left_ == a)
             {
                 swap_adjacent(r, l, true);
                 return;
             }
-            if (as_node(b).right_ == a)
+            if ((chk & check_right_rev) && as_node(b).right_ == a)
             {
                 swap_adjacent(r, l, false);
                 return;

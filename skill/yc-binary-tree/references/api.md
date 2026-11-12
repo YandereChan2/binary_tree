@@ -60,7 +60,7 @@
 | `binary_tree splice(edge_const_proxy p, binary_tree&& tree) noexcept` | 同上 |
 | `static void swap_sub_tree(edge_const_proxy l, edge_const_proxy r) noexcept` | 交换两个槽位 |
 | `void swap(binary_tree& other) noexcept` | POCS 感知 |
-| `static void swap_node(edge_const_proxy l, edge_const_proxy r) noexcept` | 交换两个节点：净效果是**两个位置上的值互换、子树留在原位**；父子相邻无需调用方提示（`parent_aware` 内部有相邻形态检查，`binary_tree` 走通用槽位交换） |
+| `static void swap_node(edge_const_proxy l, edge_const_proxy r) noexcept` | 交换两个节点：净效果是**两个位置上的值互换、子树留在原位**；始终走通用槽位交换（`parent_aware` 另有 `child_check` 掩码） |
 
 ### 遍历
 
@@ -111,7 +111,7 @@
 
 `#include "parent_aware_binary_tree.h"`
 
-上表中除下列差异外**全部相同**（`swap_node` / `for_each` 两个实现都有，签名与语义一致）：
+上表中除下列差异外**全部相同**（`swap_node` / `for_each` 两个实现都有；`swap_node` 的净语义一致，但父感知版本多一个可选的 `child_check` 掩码）：
 
 `pointer` 同样为 `std::allocator_traits<Alloc>::pointer`；在父感知版本中它另外还表示节点的 `parent` 与哨兵节点。
 
@@ -145,9 +145,18 @@
 
 ## 关于 `swap_node` 的父子相邻
 
-`parent_aware` 的 `swap_node` 会先检查四种父子相邻形态，相邻时直接做指针手术，并维护 `parent` 链；不相邻时才走通用的"先换槽位、再成对交换两边孩子槽位"路径。`binary_tree` 的 `swap_node` 始终走通用路径。
+`parent_aware` 的 `swap_node` 接受 `child_check` 掩码：只探测掩码指定的相邻形态，命中时直接做指针手术并维护 `parent` 链；未命中或未指定方向时走通用的"先换槽位、再成对交换两边孩子槽位"路径。
 
-两种实现都不需要调用方给提示，四种相邻形态与不相邻形态的净语义一致：两个位置上的值互换、子树留在原位。以上路径均已用所有非空边两两组合的穷举测试覆盖。
+| 标志 | 探测方向 |
+|-:|:-|
+| `no_check` | 不探测 |
+| `check_left` | `r` 是 `l` 的左孩子 |
+| `check_right` | `r` 是 `l` 的右孩子 |
+| `check_left_rev` | `l` 是 `r` 的左孩子 |
+| `check_right_rev` | `l` 是 `r` 的右孩子 |
+| `check_all` | 全部（默认） |
+
+`binary_tree` 的 `swap_node` 没有掩码参数，始终走通用路径。两种实现的净语义一致：两个位置上的值互换、子树留在原位。以上路径均已用所有非空边两两组合的穷举测试覆盖。
 
 ---
 

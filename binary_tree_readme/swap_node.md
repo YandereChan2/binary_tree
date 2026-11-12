@@ -10,7 +10,7 @@ static void swap_node(edge_const_proxy l, edge_const_proxy r)noexcept
 
 两个节点是否互为父子**不影响结果**，因此不需要判断，也不需要调用方提供任何提示。四种相邻形态（左右各两种顺序）与不相邻形态的结果一致。
 
-交换不复制、不销毁任何节点。本函数的接口和净语义与 `Yc::parent_aware_binary_tree::swap_node` 一致；父感知版本内部会对父子相邻形态做专门处理，但调用方式相同。
+交换不复制、不销毁任何节点。净语义与 `Yc::parent_aware_binary_tree::swap_node` 一致。父感知版本额外接受 `child_check` 掩码，可选择性地探测相邻形态；本函数固定走通用路径，调用方式仍然是两个参数。
 
 如果两个 _树位置_ 的来源 `binary_tree` 的分配器不比较相等，则行为[未定义](https://zh.cppreference.com/w/cpp/language/ub)。
 

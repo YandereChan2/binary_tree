@@ -333,6 +333,23 @@ int main()
         assert(pa_shape(t.nroot()) == "(2 (1 (4 . .) (5 . .)) (3 . .))");
         check_parents(t.nroot(), t.parent_of_nroot());
 
+        // 选择性检查掩码：未选中的方向走通用路径
+        pa_tree::swap_node(t.root(), t.root().get_left(), Yc::no_check);
+        assert(pa_shape(t.nroot()) == "(1 (2 (4 . .) (5 . .)) (3 . .))");
+        check_parents(t.nroot(), t.parent_of_nroot());
+
+        pa_tree::swap_node(t.root(), t.root().get_left(), Yc::check_left);
+        assert(pa_shape(t.nroot()) == "(2 (1 (4 . .) (5 . .)) (3 . .))");
+        check_parents(t.nroot(), t.parent_of_nroot());
+
+        pa_tree::swap_node(t.root().get_left(), t.root(), Yc::check_left_rev);
+        assert(pa_shape(t.nroot()) == "(1 (2 (4 . .) (5 . .)) (3 . .))");
+        check_parents(t.nroot(), t.parent_of_nroot());
+
+        pa_tree::swap_node(t.root(), t.root().get_left());
+        assert(pa_shape(t.nroot()) == "(2 (1 (4 . .) (5 . .)) (3 . .))");
+        check_parents(t.nroot(), t.parent_of_nroot());
+
         // 移动：根 parent 指向新树的哨兵
         pa_tree moved{ std::move(t) };
         assert(t.empty());

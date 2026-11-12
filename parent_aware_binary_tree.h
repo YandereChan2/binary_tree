@@ -877,9 +877,10 @@ namespace Yc
         {
             intrusive_tree_type::swap_sub_tree(l.intrusive(), r.intrusive());
         }
-        static void swap_node(edge_const_proxy l, edge_const_proxy r)noexcept
+        static void swap_node(edge_const_proxy l, edge_const_proxy r,
+            child_check chk = check_all)noexcept
         {
-            intrusive_tree_type::swap_node(l.intrusive(), r.intrusive());
+            intrusive_tree_type::swap_node(l.intrusive(), r.intrusive(), chk);
         }
         void swap(parent_aware_binary_tree& other)noexcept
         {
