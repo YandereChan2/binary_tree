@@ -6,10 +6,11 @@
 //   * 用户把节点钩子作为自己类型的基类（或用 intrusive_binary_tree_node
 //     就地存放一个 T），节点地址一经分配就不再改变；
 //   * 树对象（basic_*_tree）只持有一个根槽位 / 哨兵，不拥有任何节点；
-//     销毁树对象不会销毁节点，销毁节点前必须先把节点从树上摘下来。
-//   * 节点有纳管 / 脱管两种状态：默认脱管，脱管时所有链接指向自身；纳管且仍
-//     有孩子时析构是未定义行为。erase / clear 会让子树全部脱管；节点自身不能
-//     脱管，只能通过树的删除接口（erase / clear）脱管。
+//     销毁树对象不会销毁节点，但会 clear() 让节点脱管；销毁节点前必须先脱管。
+//   * 节点有纳管 / 脱管两种状态：默认脱管，脱管时所有链接指向自身；只有脱管
+//     节点可以析构。纳管节点无论有没有孩子，析构都会让树里指向它的槽位悬垂，
+//     是未定义行为。erase / clear 会让子树全部脱管；节点自身不能脱管，只能
+//     通过树的删除接口（erase / clear）脱管。
 //
 // 公开建模只使用 proxy：
 //   * edge_proxy 代表一个"树位置"（父节点到子节点之间的槽位）；
@@ -560,7 +561,10 @@ namespace Yc
             }
             return *this;
         }
-        ~basic_intrusive_binary_tree() = default;
+        ~basic_intrusive_binary_tree()
+        {
+            clear();
+        }
 
         bool empty()const noexcept
         {
@@ -1414,7 +1418,10 @@ namespace Yc
             }
             return *this;
         }
-        ~basic_intrusive_parent_aware_binary_tree() = default;
+        ~basic_intrusive_parent_aware_binary_tree()
+        {
+            clear();
+        }
 
         bool empty()const noexcept
         {

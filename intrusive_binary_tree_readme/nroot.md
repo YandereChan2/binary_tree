@@ -9,17 +9,18 @@ node_const_proxy cnroot()const noexcept;
 返回指代根 _二叉树_ 的代理；树为空时返回空代理。非 const 版本返回 `node_proxy`，
 const 版本和 `cnroot` 返回 `node_const_proxy`。
 
-与 [`root()`](root.md) 的区别：`root()` 返回根 _树位置_ 的代理，而 `nroot()` 返回处于
-该 _树位置_ 上的 _二叉树_ 的代理。需要 `go_left` / `go_right` / `go_up` / `get_parent`
-等导航时使用 `nroot()`。
+与 [`root()`](root.md) 的区别：`root()` 返回根 _树位置_ 的代理，而 `nroot()` 返回
+处于该 _树位置_ 上的 _二叉树_ 的代理。需要 `go_left` / `go_right` / `go_up` /
+`get_parent` 等导航时使用 `nroot()`。
 
 ## 参数
 
-（无）
+（无）。
 
 ## 返回值
 
 根 _二叉树_ 的代理；非 const 版本为 `node_proxy`，const 版本为 `node_const_proxy`。
+树为空时返回空代理，不能对其解引用或导航。
 
 ## 复杂度
 
@@ -27,7 +28,7 @@ const 版本和 `cnroot` 返回 `node_const_proxy`。
 
 ## 异常
 
-（无）
+（无）。
 
 ## 示例
 
@@ -40,4 +41,5 @@ if (tree.nroot())
 
 ## 备注
 
-可向上导航版本的根 _二叉树_ 的 `get_parent()` 返回 _虚拟二叉树_ 的代理。
+可向上导航版本的根 _二叉树_ 的 `get_parent()` 返回 _虚拟二叉树_ 的代理；树为空时
+`nroot()` 是空代理，调用 `get_parent()` 是**行为未定义**。

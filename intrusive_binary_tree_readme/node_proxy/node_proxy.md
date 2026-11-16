@@ -1,6 +1,6 @@
 # `Yc::intrusive_binary_tree_node_proxy<vptr>` , `Yc::intrusive_parent_aware_binary_tree_node_proxy<vptr>`
 
-指代一棵 _二叉树_，并提供导航与访问。
+指代一棵 _二叉树_ ，并提供导航与访问。
 
 `intrusive_binary_tree_node_proxy` 对应不可向上导航版本；
 `intrusive_parent_aware_binary_tree_node_proxy` 额外提供 `go_up` / `get_parent`。
@@ -12,7 +12,7 @@ proxy()noexcept; //(1)
 ```
 
 ```C++
-explicit proxy(node_base& n)noexcept; //(2)
+explicit proxy(node_base& n)noexcept; //(2) 不可向上导航版本
 ```
 
 ```C++
@@ -26,9 +26,13 @@ explicit proxy(edge_proxy e)noexcept; //(4)
 
 - (1) 空代理；
 - (2) 不可向上导航版本：由 _二叉树_ 的侵入式类型引用构造；
-- (3) 可向上导航版本：真实 _二叉树_ 或 `parent_of_nroot()` 返回的 _虚拟二叉树_ 都可以构造。
-  _虚拟二叉树_ 只能用于导航，不能 `operator*`。
-- (4) 由边代理得到该 _树位置_ 上的 _二叉树_；空 _树位置_ 得到空代理。
+- (3) 可向上导航版本：真实 _二叉树_ 或 `parent_of_nroot()` 返回的 _虚拟二叉树_
+  都可以构造；
+- (4) 由边代理得到该 _树位置_ 上的 _二叉树_ ；空 _树位置_ 得到空代理。
+
+**导航只允许在已纳管节点上进行。** 脱管节点的 `left` / `right` / `parent` 都指向
+自身，所以 `get_left()` / `go_left()` 会得到节点自身，而不是空代理；对脱管节点导航
+会形成自环，行为未定义。
 
 ## 成员函数
 
@@ -38,7 +42,7 @@ explicit proxy(edge_proxy e)noexcept; //(4)
 bool null()const noexcept;
 ```
 
-是否不指代任何 _二叉树_。默认构造和从空 _树位置_ 取得的代理都会返回 `true`。
+是否不指代任何 _二叉树_ 。默认构造和从空 _树位置_ 取得的代理都会返回 `true`。
 
 ### operator bool
 
@@ -55,7 +59,7 @@ node_base& operator*()const noexcept;
 ```
 
 返回所指 _二叉树_ 的侵入式类型引用。若 `null() == true`，行为未定义；
-可向上导航版本还要求代理指代真实 _二叉树_，对 _虚拟二叉树_ 解引用也是未定义行为。
+可向上导航版本还要求代理指代真实 _二叉树_ ，对 _虚拟二叉树_ 解引用也是行为未定义。
 
 用户拿到引用后自行转换：
 
@@ -72,7 +76,7 @@ proxy& go_left()noexcept;
 proxy& go_right()noexcept;
 ```
 
-移动到左 / 右子 _二叉树_。若当前不按语境转换为 `true`，行为未定义；
+移动到左 / 右子 _二叉树_ 。若当前不按语境转换为 `true`，行为未定义；
 对应孩子不存在时，代理变为空（`null() == true`）。返回 `*this` 以支持链式调用。
 
 ### go_up（仅可向上导航版本）
@@ -81,8 +85,8 @@ proxy& go_right()noexcept;
 proxy& go_up()noexcept;
 ```
 
-移动到父 _二叉树_。根 _二叉树_ 会移动到 _虚拟二叉树_；对 _虚拟二叉树_ 再次 `go_up`
-是无效操作。
+移动到父 _二叉树_ 。根 _二叉树_ 会移动到 _虚拟二叉树_ ；对 _虚拟二叉树_ 再次
+`go_up` 会读取不存在的 `parent`，是**行为未定义**，不是 no-op。
 
 ### get_left, get_right, get_parent
 
@@ -92,8 +96,9 @@ proxy get_right()const noexcept;
 proxy get_parent()const noexcept; // 仅可向上导航版本
 ```
 
-返回孩子 / 父 _二叉树_ 的代理。调用者需保证当前代理非空；可向上导航版本的
-_虚拟二叉树_ 只能取 `get_left`。
+返回孩子 / 父 _二叉树_ 的代理。调用者需保证当前代理非空。
+**可向上导航版本的 _虚拟二叉树_ 只支持 `get_left` / `go_left`**；对它调用
+`get_right` / `get_parent` / `go_up` / `operator*` 都是行为未定义。
 
 ### get_children
 
@@ -101,7 +106,7 @@ _虚拟二叉树_ 只能取 `get_left`。
 std::pair<edge_proxy, edge_proxy> get_children()const noexcept;
 ```
 
-返回左右孩子所在的 _树位置_。调用者需保证当前代理非空。
+返回左右孩子所在的 _树位置_ 。调用者需保证当前代理非空。
 
 ### operator edge_proxy（仅可向上导航版本）
 
@@ -109,8 +114,8 @@ std::pair<edge_proxy, edge_proxy> get_children()const noexcept;
 operator edge_proxy()const noexcept;
 ```
 
-由一棵真实 _二叉树_ 得到它所在的 _树位置_；根 _二叉树_ 得到指向 _虚拟二叉树_ 的边。
-对 _虚拟二叉树_ 调用是无效操作。
+由一棵真实 _二叉树_ 得到它所在的 _树位置_ ；根 _二叉树_ 得到指向 _虚拟二叉树_ 的
+边。对 _虚拟二叉树_ 调用是行为未定义。
 
 ## 非成员函数
 
@@ -127,3 +132,9 @@ bool operator==(proxy l, proxy r)noexcept;
 ### std::hash<node_proxy>
 
 对代理对象启用的 `std::hash` 特化。空代理哈希为 0；相等的代理哈希相等。
+
+## 失效规则
+
+节点代理绑定节点地址。插入、旋转、交换、`cut` / `splice` 都不会搬移节点，因此节点
+存活期间代理保持有效。`erase` / `clear` / 树对象析构会销毁或脱管节点；脱管后代理
+仍然存在，但不能导航。完整规则见[代理失效规则](../proxy_lifetime.md)。

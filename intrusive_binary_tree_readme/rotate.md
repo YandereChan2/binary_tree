@@ -17,7 +17,8 @@ static bool checked_right_rotate(edge_proxy e)noexcept; //(4)
 ```
 
 - (1,2) 无条件在 `e` 所指代的 _树位置_ 上旋转；
-- (3,4) 检查先决条件：不满足返回 `false`，满足则旋转并返回 `true`。
+- (3,4) 尝试旋转。若 `e` 是合法 _树位置_，但旋转所需的子树不存在，返回 `false`；
+  否则旋转并返回 `true`。
 
 ```plain text
      |                         |
@@ -28,16 +29,20 @@ static bool checked_right_rotate(edge_proxy e)noexcept; //(4)
      <D> <E>              <B> <D>
 ```
 
-图中展示左旋。左旋要求 A 所在 _树位置_ 与 A 的右子 _二叉树_ C 所在的 _树位置_
-都有 _二叉树_；右旋是镜像操作。可向上导航版本在旋转后同步维护父子关系。
+图中展示左旋。左旋要求 A 所在 _树位置_ 有 _二叉树_，且 A 的右子 _二叉树_ C 存在；
+右旋是镜像操作。可向上导航版本在旋转后同步维护父子关系。
 
-在不能旋转的位置调用无条件版本会导致未定义行为。
+如果 `e` 不是合法 _树位置_（例如默认构造的代理），四个重载都会解引用空槽位，行为
+未定义；`checked_*` 只把“合法位置但为空 / 缺子树”变成 `false`，**不会**检查代理
+本身是否合法。
+
+在不能旋转的合法位置上调用无条件版本会导致未定义行为。
 
 ## 参数
 
-||||
-|-:|-|:-|
-|`e`|-|想要进行旋转的 _树位置_|
+|||
+|-:|:-|
+|`e`|想要进行旋转的 _树位置_；必须是合法位置|
 
 ## 返回值
 
@@ -50,15 +55,30 @@ static bool checked_right_rotate(edge_proxy e)noexcept; //(4)
 
 ## 异常
 
-（无）
+（无）。
 
 ## 示例
 
 ```C++
-tree.left_rotate(tree.root());
+using tree = Yc::basic_intrusive_binary_tree<>;
 
-if (!tree.checked_right_rotate(tree.root().get_left()))
+struct node : Yc::intrusive_binary_tree_node_base<>
 {
-    // 左子 _二叉树_ 没有左子树，未旋转
+    int value;
+    explicit node(int v) : value(v) {}
+};
+
+node a(1), b(2), c(3);
+tree t;
+tree::insert(t.root(), a);
+tree::insert(t.root().get_left(), b);
+tree::insert(t.root().get_right(), c);
+
+t.left_rotate(t.root()); // 根和右孩子都存在
+assert(static_cast<node&>(*t.nroot()).value == 3);
+
+if (!t.checked_right_rotate(t.root().get_right()))
+{
+    // 该位置为空（合法树位置，但没有二叉树），返回 false
 }
 ```

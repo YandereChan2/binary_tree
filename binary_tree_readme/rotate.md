@@ -17,7 +17,8 @@ bool checked_right_rotate(edge_const_proxy p)noexcept //(4)
 ```
 
 - (1,2) 无条件在 `p` 所指代的 _树位置_ 执行旋转操作。
-- (3,4) 尝试进行旋转，如果旋转的先决条件不满足则返回 `false` ，否则返回 `true`。
+- (3,4) 尝试进行旋转。若 `p` 是合法 _树位置_，但旋转所需的子树不存在，则返回 `false`；
+  否则执行旋转并返回 `true`。
 
 ```plain text
      |                         |
@@ -28,15 +29,20 @@ bool checked_right_rotate(edge_const_proxy p)noexcept //(4)
      <D> <E>              <B> <D>
 ```
 
-旋转操作的语义如图所示（图中展示的是左旋）。旋转的先决条件指的是旋转前， A 所在的 _树位置_ 和 C 所在的 _树位置_ 必须有 _二叉树_ 。
+旋转操作的语义如图所示（图中展示的是左旋）。左旋要求 A 所在 _树位置_ 有 _二叉树_，
+且 A 的右子 _二叉树_ C 存在；右旋是镜像操作。
 
-在不能旋转的地方进行旋转会导致[未定义行为](https://zh.cppreference.com/w/cpp/language/ub)。
+如果 `p` 不是合法 _树位置_（例如默认构造的代理），则**所有四个重载**都会解引用空
+槽位，行为[未定义](https://zh.cppreference.com/w/cpp/language/ub)；`checked_*` 只把
+“合法位置但为空 / 缺子树”变成 `false`，不会检查代理本身是否合法。
+
+在不能旋转的合法位置上调用无条件版本会导致[未定义行为](https://zh.cppreference.com/w/cpp/language/ub)。
 
 ## 参数
 
-||||
-|-:|-|:-|
-|`p`|-|想要进行旋转的 _树位置_ 。|
+|||
+|-:|:-|
+|`p`|想要进行旋转的 _树位置_ ，必须从 `root()` 可达。|
 
 ## 返回值
 

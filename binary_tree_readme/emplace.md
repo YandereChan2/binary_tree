@@ -5,20 +5,31 @@ template<class... Args>
 binary_tree emplace(edge_const_proxy p, Args&&... args);
 ```
 
-在 `p` 所指代的 _树位置_ 建立一个 _二叉树_ ，并用 [`std::allocator_traits::construct`](https://zh.cppreference.com/w/cpp/memory/allocator_traits/construct) 构造元素，常用布置 `new` 在相应的位置原位构造元素。将实参 `args...` 作为 [`std::forward<Args>(args)...`](http://zh.cppreference.com/w/cpp/utility/forward) 转发给构造函数。 `args...` 可以直接或间接地指代 `*this` 中的值。不会在新 _二叉树_ 保有的 _树位置_ 上继续建立 _二叉树_ 。
+在 `p` 所指代的 _树位置_ 建立一个 _二叉树_ ，并用
+[`std::allocator_traits::construct`](https://zh.cppreference.com/w/cpp/memory/allocator_traits/construct)
+在节点内构造元素。该操作通常在这些预分配的存储上原位构造元素（placement new 只是
+其中一种可能的实现）。实参 `args...` 通过
+[`std::forward<Args>(args)...`](https://zh.cppreference.com/w/cpp/utility/forward)
+转发给 `T` 的构造函数。`args...` 可以直接或间接地指代 `*this` 中的值。不会在新
+_二叉树_ 保有的 _树位置_ 上继续建立 _二叉树_。
 
-如果 `p` 所指代的 _树位置_ 原先就有一个 _二叉树_ 那么将其通过返回值转移至 `*this` 外部。
+如果 `p` 所指代的 _树位置_ 原先就有一个 _二叉树_，那么通过返回值将其转移到
+`*this` 外部。**返回值拥有这棵原子树**：只要返回值仍然存活，既有代理对象和元素
+引用都不会失效；如果丢弃返回值，临时 `binary_tree` 的析构会销毁原子树，指向原子树
+中元素的代理和引用随之失效。
 
-如果 `p` 不从 `root()` 可达，那么行为[未定义](https://zh.cppreference.com/w/cpp/language/ub)。
+## 前置条件
 
-任何既有代理对象和元素引用都不会失效。
+- `p` 必须是**合法**的 _树位置_，并且从 `*this` 的 [`root()`](root.md) 可达。
+  传入默认构造的 `p`、或来自另一棵树的 `p`，行为[未定义](https://zh.cppreference.com/w/cpp/language/ub)。
+- `p` 可以是空 _树位置_；此时返回空的 `binary_tree`。
 
 ## 参数
 
-||||
-|-:|-|:-|
-|`p`|-|想要建立新 _二叉树_ 的 _树位置_ |
-|`args`|-|转发给元素构造函数的实参。|
+|||
+|-:|:-|
+|`p`|想要建立新 _二叉树_ 的 _树位置_|
+|`args`|转发给元素构造函数的实参。|
 
 ### 类型要求
 
@@ -26,7 +37,8 @@ binary_tree emplace(edge_const_proxy p, Args&&... args);
 
 ## 返回值
 
-原先该 _树位置_ 上的 _二叉树_ 。如果原先该 _树位置_ 无 _二叉树_ ，那么返回一个空的 `binary_tree` 对象。
+原先该 _树位置_ 上的 _二叉树_（由返回的 `binary_tree` 拥有）。如果原先该 _树位置_
+无 _二叉树_，那么返回一个空的 `binary_tree` 对象。
 
 ## 复杂度
 
@@ -34,6 +46,7 @@ binary_tree emplace(edge_const_proxy p, Args&&... args);
 
 ## 异常
 
-若抛出了异常（例如由构造函数），则保留 `binary_tree` 不修改，如同未曾调用过此函数（强异常保证）。
+若抛出了异常（例如由构造函数），则保留 `binary_tree` 不修改，如同未曾调用过此函数
+（强异常保证）。
 
 如果不能分配内存，则抛出 [`std::bad_alloc`](https://zh.cppreference.com/w/cpp/memory/new/bad_alloc) 。

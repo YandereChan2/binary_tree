@@ -9,9 +9,15 @@ namespace Yc::binary_tree_functional
 }
 ```
 
-`Yc::binary_tree_functional::get_children` 是一个[_定制点对象 (customization point object)_](https://zh.cppreference.com/w/cpp/language/customization_point)，能够统一地对四种代理类型（[`edge_proxy`](edge_proxy/edge_proxy.md)、[`edge_const_proxy`](edge_proxy/edge_proxy.md)、[`node_proxy`](node_proxy/node_proxy.md)、[`node_const_proxy`](node_proxy/node_proxy.md)）调用 `get_children()`。
+`Yc::binary_tree_functional::get_children` 是一个
+[定制点对象 (CustomizationPointObject)](https://zh.cppreference.com/w/cpp/named_req/CustomizationPointObject)，
+能够统一地对四种代理类型（[`edge_proxy`](edge_proxy/edge_proxy.md)、
+[`edge_const_proxy`](edge_proxy/edge_proxy.md)、[`node_proxy`](node_proxy/node_proxy.md)、
+[`node_const_proxy`](node_proxy/node_proxy.md)）调用 `get_children()`。
 
-主要用于泛型编程场景，例如配合 [`recur_and_write`](recur_and_write.md) 或[构造函数](constructor.md)（5）进行递归树构建，而无需关心传入的具体代理类型。
+它主要用于泛型编程场景，例如配合 [`recur_and_write`](recur_and_write.md) 或
+[构造函数](constructor.md)（5）进行递归树构建，而无需关心传入的具体代理类型；
+调用方也可以在自己的泛型代码中直接把它当作统一的 `get_children` 定制点使用。
 
 ## 返回值
 

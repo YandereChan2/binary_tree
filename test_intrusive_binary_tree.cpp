@@ -475,6 +475,47 @@ int main()
         t.clear();
     }
 
+    // ---- 父感知：跨树 swap_node 可用 no_check ----
+    {
+        pa_node a(1), b(2);
+        pa_tree ta, tb;
+        pa_tree::insert(ta.root(), a);
+        pa_tree::insert(tb.root(), b);
+
+        pa_tree::swap_node(ta.root(), tb.root(), Yc::no_check);
+        assert(static_cast<pa_node&>(*ta.nroot()).v == 2);
+        assert(static_cast<pa_node&>(*tb.nroot()).v == 1);
+        assert(ta.nroot().get_parent() == ta.parent_of_nroot());
+        assert(tb.nroot().get_parent() == tb.parent_of_nroot());
+
+        ta.clear();
+        tb.clear();
+    }
+
+    // ---- 树对象析构会自动脱管节点，但不销毁节点 ----
+    {
+        plain_node a(1), b(2);
+        {
+            plain_tree t;
+            plain_tree::insert(t.root(), a);
+            plain_tree::insert(t.root().get_left(), b);
+            assert((*plain_tree::node_proxy{ a }).is_managed());
+        }
+        // 离开作用域：t 的析构函数调用 clear()，节点重新脱管
+        assert((*plain_tree::node_proxy{ a }).is_detached());
+        assert((*plain_tree::node_proxy{ b }).is_detached());
+
+        pa_node c(3);
+        {
+            pa_tree t;
+            pa_tree::insert(t.root(), c);
+            assert(c.is_managed());
+            assert(pa_tree::node_proxy{ c }.get_parent() == t.parent_of_nroot());
+        }
+        // 根节点的 parent 不再悬垂到已销毁的哨兵
+        assert(c.is_detached());
+    }
+
     // ---- 带 T 的侵入式节点：延迟构造 / 析构 ----
     {
         using data_node = Yc::intrusive_binary_tree_node<void*, std::string>;

@@ -6,7 +6,7 @@
 
 `edge_proxy` 可以[隐式转换](https://zh.cppreference.com/w/cpp/language/implicit_conversion)到 `edge_const_proxy` ,反过来不行。
 
-这种代理对象会在相应的 _树位置_ 失效时失效，这种失效规则更加复杂。长期保有这种代理并且期间树的结构有变动时可能会导致令人困惑的结果。但是各种树操作依赖这种代理对象。如果希望得到更稳定的元素代理，请转换成 [`node_proxy`](../node_proxy/node_proxy.md) 或 [`node_const_proxy`](../node_proxy/node_proxy.md) 。
+这种代理对象会在相应的 _树位置_ 失效时失效，这种失效规则更加复杂。长期保有这种代理并且期间树的结构有变动时可能会导致令人困惑的结果。但是各种树操作依赖这种代理对象。如果希望得到更稳定的元素代理，请转换成 [`node_proxy`](../node_proxy/node_proxy.md) 或 [`node_const_proxy`](../node_proxy/node_proxy.md) 。完整的失效规则见[代理失效规则](../proxy_lifetime.md)。
 
 ## 构造函数
 

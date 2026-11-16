@@ -30,13 +30,14 @@ binary_tree(
 ); //(5)
 ```
 
-从各种数据源构造新 `binary_tree` ，可以使用用户提供的分配器 `alloc`。
+从各种数据源构造新 `binary_tree` ，可以使用用户提供的分配器 `a`。
 
 - (1) 默认的构造函数。
 - (2) 构造使用分配器 `a` 的 `binary_tree` 。
 - (3) 复制构造函数，会递归的复制所有子树。
 - (4) 移动构造函数，会转移原先的 `binary_tree` 保有的 _二叉树_ 。
-- (5) 相当于在构造后使用类似 [`recur_and_write`](recur_and_write.md) 创建 _二叉树_ 。
+- (5) 按 `vg` / `cg` / `h` 递归建立整棵树，规则与 [`recur_and_write`](recur_and_write.md)
+  相同，只是对象一开始就是空树，没有原子树需要切出。
 
 ## 参数
 
@@ -55,9 +56,17 @@ binary_tree(
 
 ## 异常
 
-如果不能分配内存，则抛出 [`std::bad_alloc`](https://zh.cppreference.com/w/cpp/memory/new/bad_alloc) 。
-
-构建元素或者取得句柄等动作可能产生别的异常。
+- (1) 一般不抛出异常；分配器复制可能抛出。
+- (2) 分配器复制可能抛出；该重载标记为 `noexcept`，因此若分配器复制抛出，会调用
+  `std::terminate`。
+- (3) 如果不能分配内存，则抛出
+  [`std::bad_alloc`](https://zh.cppreference.com/w/cpp/memory/new/bad_alloc)；
+  复制元素也可能抛出；异常时不会泄漏已分配节点。
+- (4) 移动构造为 `noexcept`。
+- (5) 构建元素或者取得句柄等动作可能产生异常。若在构造过程中抛出，已建立的节点会被
+  清理，不会泄漏。原因是构造函数 (5) 委托到分配器版本 (2)：委托目标完成后 `*this`
+  已经处于可析构状态，构造函数体抛出时 `~binary_tree` 会执行并 `clear()` 已建立的
+  节点。因此这里不需要额外的 `try/catch`。
 
 ## 示例
 
@@ -73,7 +82,7 @@ struct simple_binary_tree_node
     int val;
     std::pair<simple_binary_tree_node*, simple_binary_tree_node*> children()const noexcept
     {
-    return { left,right };
+        return { left,right };
     }
 };
 template<class H, class F>

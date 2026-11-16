@@ -22,6 +22,8 @@ static void swap_node(edge_const_proxy l, edge_const_proxy r,
 
 被选中的相邻形态直接做指针手术，其余情况走“先换槽位、再成对换孩子槽位”的通用路径；两种路径的净结果一致。交换后向上导航（`go_up` 一类）依然正确。
 
+“子树留在原位”是按**值标记**说的。相邻父子交换会改变节点身份：父节点落到子节点原来的位置，子节点升到父位置。因此调用前取得的 `edge_proxy` 可能从此指向另一个节点；需要继续操作时请重新取得代理。对同一对已经交换过的槽位重复调用，不保证恢复原状。
+
 如果两个 _树位置_ 的来源 `parent_aware_binary_tree` 的分配器不比较相等，则行为[未定义](https://zh.cppreference.com/w/cpp/language/ub)。
 
 ## 参数

@@ -1,11 +1,11 @@
 # `Yc::basic_intrusive_binary_tree<vptr>::insert` , `Yc::basic_intrusive_parent_aware_binary_tree<vptr>::insert`
 
 ```C++
+// basic_intrusive_binary_tree<vptr>
 static basic_intrusive_binary_tree insert(
     edge_proxy pos, node_base& n)noexcept;
-```
 
-```C++
+// basic_intrusive_parent_aware_binary_tree<vptr>
 static basic_intrusive_parent_aware_binary_tree insert(
     edge_proxy pos, node_base& n)noexcept;
 ```
@@ -13,17 +13,20 @@ static basic_intrusive_parent_aware_binary_tree insert(
 把 `n` 插到 `pos` 所指代的 _树位置_，并返回被换出的原子树。
 
 - `n` 必须处于**脱管**状态；如果它已经纳管，行为未定义。
+- `pos` 必须是本树的合法 _树位置_（通常来自 `root()` 或 `get_left()` / `get_right()`）；
+  传入默认构造的代理或来自另一棵树的代理，行为未定义。
 - `pos` 上原有的子树会被移动到返回的树中，而不是被销毁。
 - 插入后 `n` 被纳管；可向上导航版本会把 `n` 的父设为 `pos` 所在的父 _二叉树_。
-- 返回的树是独立的；它的根仍由它自己管理。若返回的树非空，销毁前应使用
-  [`erase`](erase.md) / [`clear`](clear.md)，或把它继续作为树使用。
+- **必须保留返回值**。返回的树是原子树的唯一句柄；如果丢弃返回值，临时树析构时会
+  `clear()`，原子树的节点被脱管，但不会销毁。除非你手里另有节点指针 / 代理，否则
+  通常无法再访问它们。
 
 ## 参数
 
-||||
-|-:|-|:-|
-|`pos`|-|要插入到的 _树位置_|
-|`n`|-|要插入的 _二叉树_；必须脱管|
+|||
+|-:|:-|
+|`pos`|要插入到的 _树位置_；必须属于本树|
+|`n`|要插入的 _二叉树_；必须脱管|
 
 ## 返回值
 
@@ -35,7 +38,7 @@ static basic_intrusive_parent_aware_binary_tree insert(
 
 ## 异常
 
-（无）
+（无）。
 
 ## 示例
 

@@ -55,15 +55,15 @@ int main()
     auto cg = &Yc::binary_tree<int>::edge_proxy::get_children;
     {
         simple_binary_tree_node tree[]{
-                                                {tree + 1,tree + 2,1},
-                        //                      |
-                        //              ---------------------
-                        //              |                    |
-                                        {{},{},2},           {{tree+3},{tree+4},3},
-                        //                                   |
-                        //                          -----------------
-                        //                          |                |
-                                                    { {},{},4 },     {{},{},5}
+                                    {tree + 1,tree + 2,1},
+            //                      |
+            //              ---------------------
+            //              |                    |
+                            {{},{},2},           {{tree + 3},{tree + 4},3},
+            //                                   |
+            //                          -----------------
+            //                          |                |
+                                        { {},{},4 },    {{},{},5}
         };
         Yc::binary_tree<int> b{&simple_binary_tree_node::val,&simple_binary_tree_node::children,&tree[0]};
         print_sub_tree(b.root(), cg);

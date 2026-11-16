@@ -1,30 +1,31 @@
 # `Yc::basic_intrusive_binary_tree<vptr>::~basic_intrusive_binary_tree` , `Yc::basic_intrusive_parent_aware_binary_tree<vptr>::~basic_intrusive_parent_aware_binary_tree`
 
 ```C++
-~basic_intrusive_binary_tree() = default;
+~basic_intrusive_binary_tree();
 ```
 
 ```C++
-~basic_intrusive_parent_aware_binary_tree() = default;
+~basic_intrusive_parent_aware_binary_tree();
 ```
 
-析构侵入式树对象。
+析构侵入式树对象。两个析构函数都等价于调用 [`clear()`](clear.md)。
 
 ## 说明
 
-析构**不会**销毁任何 _二叉树_，也**不会**遍历、拆解或脱管树：
+析构**不会销毁任何 _二叉树_**，但会：
 
-- 不可向上导航版本：只结束树对象自身；
-- 可向上导航版本：只结束树对象自身，各 _二叉树_ 之间的父子关系保持不变。
+- 遍历整棵树并让所有 _二叉树_ **脱管**（所有链接字段指回自身）；
+- 对可向上导航版本，清除根 _二叉树_ 指向本树 `_虚拟二叉树_` 的父指针，因此不会留下
+  悬垂的 `parent`；
+- 结束树对象自身。
 
-销毁树对象前，各 _二叉树_ 必须已经被 [`erase`](erase.md) / [`clear`](clear.md) 脱管，
-或已经被 [`cut`](cut.md) 摘下，并交给返回的独立树管理。
-否则，之后销毁仍有孩子的纳管 _二叉树_ 会导致未定义行为。
+因此，树对象析构后，原来的节点仍然存活且处于脱管状态，可以安全析构，也可以重新
+`insert` 到新的树里。这与“销毁节点”是两件事。
 
 ## 复杂度
 
-常数。
+与树中 _二叉树_ 的数量成线性关系。
 
 ## 异常
 
-（无）
+（无）。`clear()` 只改链接，不销毁节点。

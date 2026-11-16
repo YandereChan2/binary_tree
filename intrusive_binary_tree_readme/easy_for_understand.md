@@ -24,9 +24,9 @@ struct tree_element
 并且用 `tree_element*` 管理根或者某棵子树。
 
 如果"在某个位置插入子树"也用 `tree_element*` 作为参数，就必须区分"插到左边"和
-"插到右边"，根位置还要特殊处理。删除更麻烦：你可以 `delete t->left`，但不能直接
-`delete t`，因为 `t` 可能是某个父对象的子 _二叉树_，直接销毁它无法让父对象里指向它的
-位置同步变空。
+"插到右边"，根位置还要特殊处理。删除更麻烦：即使你手里有父节点，`delete t->left` 之后也必须记得把 `t->left` 置空；
+如果只拿到 `t` 本身，就无法知道它是谁的子节点，也就无法让父对象里指向它的位置
+同步变空。
 
 ## 一级指针与二级指针
 
@@ -94,7 +94,7 @@ struct task
 不需要分配，也不需要为了删除而先查找：
 
 ```C++
-task a{...}, b{...};
+task a{nullptr, nullptr, 1}, b{nullptr, nullptr, 2};
 // 把 b 插到 a 后面、摘掉 b，都只改几个链接
 ```
 
@@ -127,11 +127,11 @@ struct task
     int id;
 };
 
-task* t = ...;
-task* next = t->next; // 这里已经拿到 task*
+task t{nullptr, nullptr, 1};
+task* next = t.next; // 这里已经拿到 task*
 ```
 
-但在更一般的情况里，算法可能只拿到 `&t->next` 这个"链接的地址"，而不是 `t` 本身。
+但在更一般的情况里，算法可能只拿到 `&t.next` 这个"链接的地址"，而不是 `t` 本身。
 要取回包含这个链接的 `task` 对象，就需要从"成员地址"反推"宿主对象地址"。
 
 Linux 内核里的 `container_of` 就是这个思路：
@@ -154,7 +154,7 @@ struct task : Yc::intrusive_binary_tree_node_base<>
     explicit task(int i) : id(i) {}
 };
 
-task t{...};
+task t{1};
 auto p = Yc::intrusive_binary_tree_node_proxy<>{ t }; // 指代这棵 _二叉树_
 auto& same = static_cast<task&>(*p);
 ```
@@ -204,8 +204,8 @@ _虚拟二叉树_：它只有左 _树位置_，其左 _树位置_ 上是根 _二
 - 一眼就能看出它还没有被任何树接管；
 - 销毁一个脱管的 _二叉树_ 不会影响其他 _二叉树_，因此是安全的。
 
-纳管的 _二叉树_ 如果有孩子，直接析构会留下指向它的父 _树位置_，所以是未定义行为。
-要销毁一棵子树，应使用树的删除接口：
+纳管的 _二叉树_ 无论有没有孩子，直接析构都会让父节点或树根里指向它的槽位悬垂，所以
+是未定义行为。要销毁一棵子树，应使用树的删除接口：
 
 - [`erase(pos)`](erase.md)：拆掉子树，让所有 _二叉树_ 脱管；
 - [`erase(pos, deleter)`](erase.md)：脱管后再对每棵 _二叉树_ 调用回收器；

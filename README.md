@@ -17,7 +17,7 @@
 
 结构分成两层：
 
-- `intrusive_binary_tree.h`：侵入式二叉树，只维护链接和结构操作，不拥有节点、不分配内存；公开接口只有边代理和节点代理。
+- `intrusive_binary_tree.h`：侵入式二叉树，只维护链接和结构操作，不拥有节点、不分配内存；公开的结构操作只使用边代理和节点代理。
 - `binary_tree.h` / `parent_aware_binary_tree.h`：非侵入式适配器，内部持有一棵侵入式树，负责节点分配、`T` 的构造/析构、拷贝/移动和分配器传播。
 
 非侵入式适配器只暴露自己的代理，不把侵入式代理作为公开接口。四类代理分别是：
@@ -25,7 +25,7 @@
 - `edge_proxy` / `edge_const_proxy`
 - `node_proxy` / `node_const_proxy`
 
-非侵入式树提供 `root` / `croot`、`nroot` / `cnroot`、`parent_of_nroot` / `parent_of_cnroot`，以及 `cut`、`splice`、`emplace`、`insert`、`erase`、`clear`、旋转、`swap_node`、`for_each` 和 `recur_and_write`。
+非侵入式树提供 `root` / `croot`、`nroot` / `cnroot`，以及 `cut`、`splice`、`emplace`、`insert`、`erase`、`clear`、旋转、`swap_node`、`for_each` 和 `recur_and_write`；`parent_aware_binary_tree` 还提供 `parent_of_nroot` / `parent_of_cnroot`。
 
 主要发布件：
 

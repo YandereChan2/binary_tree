@@ -12,9 +12,9 @@ explicit proxy(edge_const_proxy e) noexcept; //(3)
 
 - (1) 由可修改代理构造；
 - (2) 由 _二叉树_ 的侵入式类型引用构造；
-- (3) 由只读边代理取得该 _树位置_ 上的 _二叉树_。
+- (3) 由只读边代理取得该 _树位置_ 上的 _二叉树_ 。
 
-成员函数：
+## 成员函数
 
 ```C++
 bool null()const noexcept;
@@ -39,4 +39,19 @@ friend bool operator==(proxy l, proxy r)noexcept;
 operator edge_const_proxy()const noexcept;
 ```
 
-`const` 版本只能读取 _二叉树_ 基类，不能通过它修改树。
+对 _虚拟二叉树_ 调用这个转换同样是行为未定义；它只适用于真实 _二叉树_。
+
+## 语义
+
+- `null()` / `operator*` 的前置条件与 [`node_proxy`](node_proxy/node_proxy.md)
+  相同；空代理解引用是行为未定义。
+- 只读代理不能在脱管节点上导航；脱管节点的链接指向自身，导航会得到自环。
+- 父感知版本中，_虚拟二叉树_ 只支持 `get_left` / `go_left`；对它调用
+  `get_right` / `get_parent` / `go_up` / `operator*` 都是行为未定义。
+- 不能通过只读代理修改树。
+
+## 辅助类
+
+### std::hash<node_const_proxy>
+
+对代理对象启用的 `std::hash` 特化。空代理哈希为 0；相等的代理哈希相等。
