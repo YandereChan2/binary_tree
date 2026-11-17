@@ -212,10 +212,7 @@ namespace Yc
         std::pair<intrusive_binary_tree_edge_proxy<vptr>,
             intrusive_binary_tree_edge_proxy<vptr>> get_children()const noexcept;
         friend bool operator==(intrusive_binary_tree_node_proxy l,
-            intrusive_binary_tree_node_proxy r)noexcept
-        {
-            return l.node_ == r.node_;
-        }
+            intrusive_binary_tree_node_proxy r)noexcept = default;
         friend struct std::hash<intrusive_binary_tree_node_proxy>;
     };
 
@@ -300,10 +297,7 @@ namespace Yc
             return { get_left(), get_right() };
         }
         friend bool operator==(intrusive_binary_tree_edge_proxy l,
-            intrusive_binary_tree_edge_proxy r)noexcept
-        {
-            return l.ptr_ == r.ptr_;
-        }
+            intrusive_binary_tree_edge_proxy r)noexcept = default;
         friend struct std::hash<intrusive_binary_tree_edge_proxy>;
         template<class>
         friend class intrusive_binary_tree_node_proxy;
@@ -387,10 +381,7 @@ namespace Yc
             return { get_left(), get_right() };
         }
         friend bool operator==(intrusive_binary_tree_edge_const_proxy l,
-            intrusive_binary_tree_edge_const_proxy r)noexcept
-        {
-            return l.e_ == r.e_;
-        }
+            intrusive_binary_tree_edge_const_proxy r)noexcept = default;
         friend struct std::hash<intrusive_binary_tree_edge_const_proxy>;
     };
 
@@ -452,10 +443,7 @@ namespace Yc
             return { edge_const_proxy{ l }, edge_const_proxy{ r } };
         }
         friend bool operator==(intrusive_binary_tree_node_const_proxy l,
-            intrusive_binary_tree_node_const_proxy r)noexcept
-        {
-            return l.p_ == r.p_;
-        }
+            intrusive_binary_tree_node_const_proxy r)noexcept = default;
         friend struct std::hash<intrusive_binary_tree_node_const_proxy>;
     };
 
@@ -970,10 +958,7 @@ namespace Yc
             intrusive_parent_aware_binary_tree_edge_proxy<vptr>> get_children()const noexcept;
         operator intrusive_parent_aware_binary_tree_edge_proxy<vptr>() const noexcept;
         friend bool operator==(intrusive_parent_aware_binary_tree_node_proxy l,
-            intrusive_parent_aware_binary_tree_node_proxy r)noexcept
-        {
-            return l.node_ == r.node_;
-        }
+            intrusive_parent_aware_binary_tree_node_proxy r)noexcept = default;
         friend struct std::hash<intrusive_parent_aware_binary_tree_node_proxy>;
     };
 
@@ -1082,10 +1067,7 @@ namespace Yc
             return ch_ == left_member;
         }
         friend bool operator==(intrusive_parent_aware_binary_tree_edge_proxy l,
-            intrusive_parent_aware_binary_tree_edge_proxy r)noexcept
-        {
-            return l.parent_ == r.parent_ && l.ch_ == r.ch_;
-        }
+            intrusive_parent_aware_binary_tree_edge_proxy r)noexcept = default;
         friend struct std::hash<intrusive_parent_aware_binary_tree_edge_proxy>;
         template<class>
         friend class intrusive_parent_aware_binary_tree_node_proxy;
@@ -1209,10 +1191,7 @@ namespace Yc
             return e_.is_left();
         }
         friend bool operator==(intrusive_parent_aware_binary_tree_edge_const_proxy l,
-            intrusive_parent_aware_binary_tree_edge_const_proxy r)noexcept
-        {
-            return l.e_ == r.e_;
-        }
+            intrusive_parent_aware_binary_tree_edge_const_proxy r)noexcept = default;
         friend struct std::hash<intrusive_parent_aware_binary_tree_edge_const_proxy>;
     };
 
@@ -1291,10 +1270,7 @@ namespace Yc
                 intrusive_parent_aware_binary_tree_edge_proxy<vptr>>(p_) };
         }
         friend bool operator==(intrusive_parent_aware_binary_tree_node_const_proxy l,
-            intrusive_parent_aware_binary_tree_node_const_proxy r)noexcept
-        {
-            return l.p_ == r.p_;
-        }
+            intrusive_parent_aware_binary_tree_node_const_proxy r)noexcept = default;
         friend struct std::hash<intrusive_parent_aware_binary_tree_node_const_proxy>;
     };
 

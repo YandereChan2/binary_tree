@@ -113,10 +113,7 @@ namespace Yc
             {
                 return { get_left(), get_right() };
             }
-            friend bool operator==(binary_tree_edge_proxy l, binary_tree_edge_proxy r)noexcept
-            {
-                return l.e_ == r.e_;
-            }
+            friend bool operator==(binary_tree_edge_proxy l, binary_tree_edge_proxy r)noexcept = default;
             friend struct std::hash<binary_tree_edge_proxy>;
             friend class binary_tree_edge_const_proxy<T, vptr>;
             friend class binary_tree_node_proxy<T, vptr>;
@@ -208,10 +205,7 @@ namespace Yc
             {
                 return { get_left(), get_right() };
             }
-            friend bool operator==(binary_tree_edge_const_proxy l, binary_tree_edge_const_proxy r)noexcept
-            {
-                return l.e_ == r.e_;
-            }
+            friend bool operator==(binary_tree_edge_const_proxy l, binary_tree_edge_const_proxy r)noexcept = default;
             friend struct std::hash<binary_tree_edge_const_proxy>;
             friend class binary_tree_node_const_proxy<T, vptr>;
             template<class T1, class Alloc1>
@@ -302,10 +296,7 @@ namespace Yc
                          binary_tree_edge_proxy<T, vptr>{
                              intrusive_binary_tree_edge_proxy<vptr>{ n_, false } } };
             }
-            friend bool operator==(binary_tree_node_proxy l, binary_tree_node_proxy r)noexcept
-            {
-                return l.n_ == r.n_;
-            }
+            friend bool operator==(binary_tree_node_proxy l, binary_tree_node_proxy r)noexcept = default;
             friend struct std::hash<binary_tree_node_proxy>;
             friend class binary_tree_node_const_proxy<T, vptr>;
             template<class T1, class Alloc1>
@@ -400,10 +391,7 @@ namespace Yc
                          binary_tree_edge_const_proxy<T, vptr>{
                              intrusive_binary_tree_edge_proxy<vptr>{ n_, false } } };
             }
-            friend bool operator==(binary_tree_node_const_proxy l, binary_tree_node_const_proxy r)noexcept
-            {
-                return l.n_ == r.n_;
-            }
+            friend bool operator==(binary_tree_node_const_proxy l, binary_tree_node_const_proxy r)noexcept = default;
             friend struct std::hash<binary_tree_node_const_proxy>;
             template<class T1, class Alloc1>
             friend class Yc::binary_tree;
