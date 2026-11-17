@@ -56,9 +56,10 @@ binary_tree(
 
 ## 异常
 
-- (1) 一般不抛出异常；分配器复制可能抛出。
-- (2) 分配器复制可能抛出；该重载标记为 `noexcept`，因此若分配器复制抛出，会调用
-  `std::terminate`。
+- (1) 默认构造分配器。标准分配器不抛出；用户自定义分配器的默认构造是否抛出由该类型
+  自身决定。
+- (2) 该重载标记为 `noexcept`。`Allocator` 命名要求规定分配器的复制构造不得抛出异常，
+  因此这里不会因复制分配器而 `std::terminate`。
 - (3) 如果不能分配内存，则抛出
   [`std::bad_alloc`](https://zh.cppreference.com/w/cpp/memory/new/bad_alloc)；
   复制元素也可能抛出；异常时不会泄漏已分配节点。
@@ -67,6 +68,11 @@ binary_tree(
   清理，不会泄漏。原因是构造函数 (5) 委托到分配器版本 (2)：委托目标完成后 `*this`
   已经处于可析构状态，构造函数体抛出时 `~binary_tree` 会执行并 `clear()` 已建立的
   节点。因此这里不需要额外的 `try/catch`。
+
+`Allocator` 的复制构造、移动构造，以及需要传播时的复制赋值 / 交换都不得抛出异常
+（见 [Allocator](https://zh.cppreference.com/w/cpp/named_req/Allocator) 命名要求）。
+因此 `binary_tree` 的分配器操作本身不是异常来源；本页的异常只来自内存分配、元素复制
+/ 移动 / 构造或用户提供的 `vg` / `cg` / `h`。
 
 ## 示例
 
