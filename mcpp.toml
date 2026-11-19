@@ -1,4 +1,4 @@
-# mcpp project manifest for the binary_tree library.
+﻿# mcpp project manifest for the binary_tree library.
 #
 # The public interface is the header library (`include_dirs`) plus the C++23
 # module wrappers. `src/binary_tree.cppm` is the lib root: it re-exports the
@@ -7,7 +7,7 @@
 [package]
 namespace   = "yandere-chan"
 name        = "binary_tree"
-version     = "0.1.3"
+version     = "0.1.4"
 description = "Intrusive and owning binary tree library, with C++23 module wrappers"
 license     = "MIT"
 authors     = ["YandereChan2"]

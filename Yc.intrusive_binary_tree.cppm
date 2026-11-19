@@ -26,6 +26,12 @@ module;
 
 export module Yc.intrusive_binary_tree;
 
+// clang 的模块可见性缺陷让 GMF 里的 <new> 对导入方不可见，而 libc++ 的
+// allocator_traits::construct 在实例化点查找 placement new。导出全局
+// operator new/delete 的 using 声明，import 方就不必自己包含 <new>。
+export using ::operator new;
+export using ::operator delete;
+
 export
 {
 #include "intrusive_binary_tree.h"

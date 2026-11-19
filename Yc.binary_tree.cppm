@@ -37,6 +37,10 @@ export module Yc.binary_tree;
 
 import Yc.intrusive_binary_tree;
 
+// 理由同 Yc.intrusive_binary_tree.cppm：把 placement new 的声明导出给导入方。
+export using ::operator new;
+export using ::operator delete;
+
 #define YC_BINARY_TREE_MODULE 1
 
 export
