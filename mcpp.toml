@@ -5,9 +5,9 @@
 # three public wrappers, so `import binary_tree;` reaches all of them.
 
 [package]
-namespace   = "YandereChan2"
+namespace   = "yandere-chan"
 name        = "binary_tree"
-version     = "0.1.2"
+version     = "0.1.3"
 description = "Intrusive and owning binary tree library, with C++23 module wrappers"
 license     = "MIT"
 authors     = ["YandereChan2"]
