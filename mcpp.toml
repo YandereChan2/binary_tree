@@ -1,0 +1,31 @@
+# mcpp project manifest for the binary_tree library.
+#
+# The public interface is the header library (`include_dirs`) plus the C++23
+# module wrappers. `src/binary_tree.cppm` is the lib root: it re-exports the
+# three public wrappers, so `import binary_tree;` reaches all of them.
+
+[package]
+namespace   = "YandereChan2"
+name        = "binary_tree"
+version     = "0.1.0"
+description = "Intrusive and owning binary tree library, with C++23 module wrappers"
+license     = "MIT"
+authors     = ["YandereChan2"]
+repo        = "https://github.com/YandereChan2/binary_tree"
+standard    = "c++23"
+
+[build]
+# The headers and the three wrappers live at the repository root.
+include_dirs = ["."]
+sources = [
+    "Yc.intrusive_binary_tree.cppm",
+    "Yc.binary_tree.cppm",
+    "Yc.parent_aware_binary_tree.cppm",
+    "src/binary_tree.cppm",
+]
+
+[lib]
+path = "src/binary_tree.cppm"
+
+[targets.binary_tree]
+kind = "lib"
