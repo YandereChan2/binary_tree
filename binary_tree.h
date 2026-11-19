@@ -9,6 +9,12 @@
 //   - 本文件是"拥有型适配器"：binary_tree 内部持有一棵侵入式树，自己负责
 //     节点内存的分配、T 的构造/析构与回收；公开的 edge_proxy / node_proxy
 //     在侵入式 proxy 外再包一层，提供 T 的解引用。
+//
+// 三种用法（同一个程序里不要混用 include 与 import 同一个实体）：
+//   * 传统头文件：#include "binary_tree.h"
+//   * 标题单元：  import "binary_tree.h";
+//   * 具名模块：  import Yc.binary_tree;
+//     模块接口单元见同目录的 Yc.binary_tree.cppm。
 #pragma once
 
 // MSVC 不支持标准 [[no_unique_address]]，要用它的 [[msvc::no_unique_address]]
@@ -24,8 +30,18 @@
 #include <type_traits>
 #include <functional>
 #include <utility>
+
+// 依赖的头文件有两种来源：
+//   1. 普通 #include（以及 import "binary_tree.h"; 这种标题单元）直接文本包含；
+//   2. 作为具名模块 Yc.binary_tree 的接口内容编译时，模块接口单元
+//      (Yc.binary_tree.cppm) 会定义 YC_BINARY_TREE_MODULE：intrusive 层由
+//      import Yc.intrusive_binary_tree; 提供，union_data.h 由该接口单元的
+//      全局模块片段提供（data_t 只在模块内部使用，不对外导出）。
+// 一个 TU 只会走其中一条路径，所以不会出现重复定义。
+#ifndef YC_BINARY_TREE_MODULE
 #include "intrusive_binary_tree.h"
 #include "union_data.h"
+#endif
 
 namespace Yc
 {
@@ -574,6 +590,8 @@ namespace Yc
         explicit binary_tree(const Alloc& a)noexcept :alloc{ a }
         {
         }
+        // 委托到分配器版本；委托完成后 *this 已可析构。若下面的构造体抛出，
+        // ~binary_tree 会运行并 clear() 掉已建立的节点，因此不需要额外的 catch。
         template<class ValueGetter, class ChildrenGetter, class InitializeHandle>
         binary_tree(ValueGetter vg, ChildrenGetter cg, InitializeHandle h,
             const Alloc& a = {}) :binary_tree(a)

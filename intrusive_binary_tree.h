@@ -39,6 +39,12 @@
 //   * 结构函数都假定调用方满足前置条件（例如旋转要求对应孩子存在）。
 //     检查版旋转 checked_* 会把前置条件变成返回值。
 // ===========================================================================
+// 三种用法（同一个程序里不要混用 include 与 import 同一个实体）：
+//   * 传统头文件：#include "intrusive_binary_tree.h"
+//   * 标题单元：  import "intrusive_binary_tree.h";
+//   * 具名模块：  import Yc.intrusive_binary_tree;
+//     模块接口单元见同目录的 Yc.intrusive_binary_tree.cppm。
+// ===========================================================================
 #pragma once
 
 #include <cstddef>

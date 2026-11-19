@@ -34,6 +34,8 @@
 - `intrusive_binary_tree.h`
 - `union_data.h`
 
+另提供 3 个 C++ 模块接口单元：`Yc.intrusive_binary_tree.cppm`、`Yc.binary_tree.cppm`、`Yc.parent_aware_binary_tree.cppm`，见下文“C++ 模块支持”。
+
 把文件直接放在头文件目录即可使用，无需配置构建选项。文档分别在 `binary_tree_readme`、`parent_aware_binary_tree_readme` 和 `intrusive_binary_tree_readme` 目录下。
 
 为了验证二叉树库的封装能力，本仓库还实现了基于红黑树、AVL、WAVL、LLRB、SBT、FHQ treap 等平衡树搭建的、接口接近 `std::set` 的类模板：
@@ -45,7 +47,7 @@
 - `sbt_set.h`
 - `fhq_treap_set.h`
 
-这些 POC 头文件依赖 `parent_aware_binary_tree.h`、`set_common.h` 和 `cookie_allocator.h`，且都是自包含的。
+这些 POC 头文件依赖 `set_common.h` 和 `cookie_allocator.h`。其中 `rb_set.h` / `avl_set.h` 通过 `import Yc.parent_aware_binary_tree;` 使用树模块（它们仍是普通头文件，不是模块接口单元），其余 POC 头文件仍直接包含 `parent_aware_binary_tree.h`。
 
 # 测试与构建
 
@@ -56,26 +58,85 @@ CMake 提供：
 
 MSVC 下为这些目标启用 `/utf-8`；可在构建目录运行 `ctest`。
 
+# C++ 模块支持
+
+`intrusive_binary_tree.h`、`binary_tree.h`、`parent_aware_binary_tree.h` 三种用法都支持：
+
+| 用法 | 写法 |
+|-|-|
+| 传统头文件 | `#include "binary_tree.h"` |
+| 标题单元（header unit） | `import "binary_tree.h";` |
+| 具名模块 | `import Yc.binary_tree;` |
+
+具名模块的接口单元在仓库根目录：
+
+| 模块 | 导出的头文件 | 接口单元 |
+|-|-|-|
+| `Yc.intrusive_binary_tree` | `intrusive_binary_tree.h` | `Yc.intrusive_binary_tree.cppm` |
+| `Yc.binary_tree` | `binary_tree.h` | `Yc.binary_tree.cppm` |
+| `Yc.parent_aware_binary_tree` | `parent_aware_binary_tree.h` | `Yc.parent_aware_binary_tree.cppm` |
+
+头文件本身不含任何 module 声明，所以 `#include` 和标题单元的用法完全不变。模块接口单元把标准库头文件放进全局模块片段（global module fragment），再用 `export { #include "…" }` 把整个头文件导出。`binary_tree` / `parent_aware_binary_tree` 的侵入式层由 `import Yc.intrusive_binary_tree;` 提供；接口单元先 `import` 该模块，再定义 `YC_BINARY_TREE_MODULE` / `YC_PARENT_AWARE_BINARY_TREE_MODULE`，头文件看到该宏就跳过自己的两个 `#include`，保证每个实体只属于一个模块。`union_data.h`（`data_t` 是节点存储的实现细节）只被放进两个树模块接口单元的全局模块片段，既不导出也不单独成模块。
+
+`rb_set.h` / `avl_set.h` 通过 `import Yc.parent_aware_binary_tree;` 使用树模块（它们仍是普通头文件，不是模块接口单元）；使用它们时，需要先构建对应模块。
+
+## 构建与使用
+
+```bat
+:: 编译模块接口单元，得到 .ifc 和 .obj（/interface 声明这是接口单元，/Tp 指定按 C++ 源文件处理）
+cl /std:c++latest /EHsc /utf-8 /c /interface /TpYc.intrusive_binary_tree.cppm /ifcOutput Yc.intrusive_binary_tree.ifc
+cl /std:c++latest /EHsc /utf-8 /c /interface /TpYc.binary_tree.cppm /ifcSearchDir . /ifcOutput Yc.binary_tree.ifc
+cl /std:c++latest /EHsc /utf-8 /c /interface /TpYc.parent_aware_binary_tree.cppm /ifcSearchDir . /ifcOutput Yc.parent_aware_binary_tree.ifc
+
+:: 编译消费方；/ifcSearchDir 让编译器按模块名找到全部 .ifc
+cl /std:c++latest /EHsc /utf-8 main.cpp /ifcSearchDir . ^
+   Yc.intrusive_binary_tree.obj Yc.binary_tree.obj Yc.parent_aware_binary_tree.obj
+```
+
+```C++
+#include <vector>   // MSVC 下标准库 #include 要放在 import 之前，见下面注意事项
+
+import Yc.intrusive_binary_tree;
+import Yc.binary_tree;
+import Yc.parent_aware_binary_tree;
+
+int main()
+{
+    Yc::binary_tree<int> t;
+    t.insert(t.root(), 1);
+    t.insert(t.root().get_left(), 2);
+    std::vector<int> v;
+    t.for_each([&](int& x) { v.push_back(x); });
+}
+```
+
+标题单元用 `import "binary_tree.h";`，需要编译器先为该头文件生成 IFC。MSVC 的生成 / 使用方式：
+
+```bat
+cl /std:c++latest /EHsc /utf-8 /c /exportHeader binary_tree.h /ifcOutput binary_tree.h.ifc
+cl /std:c++latest /EHsc /utf-8 main.cpp /headerUnit "binary_tree.h=binary_tree.h.ifc"
+```
+
+## 注意事项
+
+- 同一程序里不要混用 `#include` 与 `import` 同一个实体：模块里的实体和全局模块里的实体不是同一个实体，混用属于 IFNDR。
+- MSVC 下若某个 TU 既 `import` 具名模块，又在 `import` 之后包含该模块全局模块片段里已经包含过的标准库头文件，会出现 std 重定义（C2011 / C2572 等）。把标准库 `#include` 全部放到 `import` 之前即可；标题单元方式不受此限制。
+- 链接时要把各模块接口单元生成的 `.obj` 一起链接。
+
 # 性能
 
-可以运行 `benchmark_perf.cpp` 对比 `Yc::rb_set` 与 `std::set`。`Ratio = std::set 时间 / rb_set 时间`，大于 1 表示 `rb_set` 更快。
+可以运行 `benchmark_perf.cpp` 对比 `Yc::rb_set` 与 `std::set`。`Ratio = std::set 时间 / rb_set 时间`，大于 1 表示 `rb_set` 更快。`benchmark_perf.cpp` 通过 `rb_set.h` 使用 `Yc.parent_aware_binary_tree` 模块，编译前需要先按上一节生成模块 IFC。
 
-当前测试条件：
+测试参数为 `N = 500,000`、50 轮平均；具体数值会随编译器、标准库实现、机器和数据分布变化。
 
-- MSVC 14.44 / GCC 16.1，`-O2`
-- `N = 500,000`
-- 50 轮平均
-
-| 测试 | MSVC Ratio | GCC Ratio | MSVC rb(ms) | GCC rb(ms) |
-|-:|-:|-:|-:|-:|
-| insert_random | 0.94x | 0.82x | 206.9 | 213.7 |
-| insert_sorted | 0.85x | 1.00x | 51.5 | 42.2 |
-| find | 0.95x | 0.96x | 245.8 | 292.6 |
-| erase | 1.26x | 1.04x | 124.6 | 133.4 |
-| iteration | 0.68x | 0.96x | 59.1 | 60.6 |
-| mixed | 1.03x | 0.92x | 106.3 | 107.4 |
-
-性能会随编译器、标准库实现和数据分布变化，以上仅是本机实测结果。
+| 测试 | Ratio |
+|-:|-:|
+| insert_random | 0.96x |
+| insert_sorted | 0.74x |
+| find | 1.00x |
+| erase | 2.45x |
+| iteration | 0.69x |
+| mixed | 1.12x |
 
 # 快速开始
 

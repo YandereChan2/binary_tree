@@ -1,10 +1,17 @@
 #pragma once
-#include "cookie_allocator.h"
-#include "parent_aware_binary_tree.h"
-#include "set_common.h"
 #include <memory>
 #include <algorithm>
 #include <utility>
+#include "cookie_allocator.h"
+
+// 红黑树 POC 通过具名模块使用二叉搜索树基础结构。
+// 本文件仍是普通头文件（不是模块接口单元），但使用它的翻译单元
+// 需要能 import Yc.parent_aware_binary_tree。
+// 标准库头文件都放在 import 之前，避免与模块全局模块片段里的 std 声明重复。
+import Yc.parent_aware_binary_tree;
+
+#include "set_common.h"
+
 namespace Yc
 {
     template<class T, class Compare = std::less<T>, class Alloc = std::allocator<T>>
