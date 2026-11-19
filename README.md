@@ -121,6 +121,7 @@ cl /std:c++latest /EHsc /utf-8 main.cpp /headerUnit "binary_tree.h=binary_tree.h
 
 - 同一程序里不要混用 `#include` 与 `import` 同一个实体：模块里的实体和全局模块里的实体不是同一个实体，混用属于 IFNDR。
 - MSVC 下若某个 TU 既 `import` 具名模块，又在 `import` 之后包含该模块全局模块片段里已经包含过的标准库头文件，会出现 std 重定义（C2011 / C2572 等）。把标准库 `#include` 全部放到 `import` 之前即可；标题单元方式不受此限制。
+- libc++（clang）下，消费方需要在 `import` 之前 `#include <new>`：libc++ 的 `allocator_traits::construct` 在实例化点使用 placement new，而模块全局模块片段里的 `<new>` 对导入方不可见；MSVC STL / libstdc++ 会间接带入 `<new>`，不受影响。
 - 链接时要把各模块接口单元生成的 `.obj` 一起链接。
 
 # 性能
