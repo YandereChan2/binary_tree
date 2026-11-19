@@ -28,6 +28,7 @@ module;
 #include <cstddef>
 #include <functional>
 #include <memory>
+#include <new>
 #include <type_traits>
 #include <utility>
 #include "union_data.h"

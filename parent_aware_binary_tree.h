@@ -25,6 +25,7 @@
 #endif
 
 #include <memory>
+#include <new>
 #include <type_traits>
 #include <functional>
 #include <utility>
