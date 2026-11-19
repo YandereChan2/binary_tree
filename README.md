@@ -47,7 +47,7 @@
 - `sbt_set.h`
 - `fhq_treap_set.h`
 
-这些 POC 头文件依赖 `set_common.h` 和 `cookie_allocator.h`。其中 `rb_set.h` / `avl_set.h` 在 MSVC 下通过 `import "parent_aware_binary_tree.h";`（标题单元）使用树类型，其它编译器回退为 `#include "parent_aware_binary_tree.h"`；它们仍是普通头文件，不是模块接口单元。其余 POC 头文件仍直接包含 `parent_aware_binary_tree.h`。
+这些 POC 头文件依赖 `set_common.h` 和 `cookie_allocator.h`。其中 `rb_set.h` / `avl_set.h` 通过 `import "parent_aware_binary_tree.h";`（标题单元）使用树类型，它们仍是普通头文件，不是模块接口单元；其余 POC 头文件仍直接包含 `parent_aware_binary_tree.h`。
 
 # 测试与构建
 
@@ -78,7 +78,7 @@ MSVC 下为这些目标启用 `/utf-8`；可在构建目录运行 `ctest`。
 
 头文件本身不含任何 module 声明，所以 `#include` 和标题单元的用法完全不变。模块接口单元把标准库头文件放进全局模块片段（global module fragment），再用 `export { #include "…" }` 把整个头文件导出。`binary_tree` / `parent_aware_binary_tree` 的侵入式层由 `import Yc.intrusive_binary_tree;` 提供；接口单元先 `import` 该模块，再定义 `YC_BINARY_TREE_MODULE` / `YC_PARENT_AWARE_BINARY_TREE_MODULE`，头文件看到该宏就跳过自己的两个 `#include`，保证每个实体只属于一个模块。`union_data.h`（`data_t` 是节点存储的实现细节）只被放进两个树模块接口单元的全局模块片段，既不导出也不单独成模块。
 
-`rb_set.h` / `avl_set.h` 在 MSVC 下通过 `import "parent_aware_binary_tree.h";` 使用标题单元（需要先为该头文件生成 IFC），其它编译器回退为普通包含；它们仍是普通头文件，不是模块接口单元。
+`rb_set.h` / `avl_set.h` 通过 `import "parent_aware_binary_tree.h";` 使用标题单元（使用前需要先为该头文件生成 CMI/IFC）；它们仍是普通头文件，不是模块接口单元。
 
 ## 构建与使用
 
@@ -127,7 +127,7 @@ cl /std:c++latest /EHsc /utf-8 main.cpp /headerUnit "binary_tree.h=binary_tree.h
 
 可以运行 `benchmark_perf.cpp` 对比 `Yc::rb_set` 与 `std::set`。`Ratio = std::set 时间 / rb_set 时间`，大于 1 表示 `rb_set` 更快。
 
-`benchmark_perf.cpp` 通过 `rb_set.h` 使用 `parent_aware_binary_tree.h`：MSVC 下是标题单元，需要先生成该头文件的 IFC；其它编译器回退为普通包含，直接编译即可。
+`benchmark_perf.cpp` 通过 `rb_set.h` 使用 `parent_aware_binary_tree.h` 的标题单元，编译前先生成该头文件的 CMI/IFC。
 
 ```bat
 :: MSVC
@@ -136,20 +136,21 @@ cl /std:c++latest /EHsc /utf-8 /O2 benchmark_perf.cpp /headerUnit "parent_aware_
 ```
 
 ```bat
-:: GCC
-g++ -std=c++23 -O2 benchmark_perf.cpp -o benchmark_perf
+:: GCC（-fmodules 在生成 CMI 和编译消费方时都要加）
+g++ -std=c++23 -fmodules -x c++-header -c parent_aware_binary_tree.h
+g++ -std=c++23 -fmodules -O2 benchmark_perf.cpp -o benchmark_perf
 ```
 
 测试参数为 `N = 500,000`、50 轮平均；具体数值会随编译器、标准库实现、机器和数据分布变化。
 
 | 测试 | MSVC Ratio | GCC Ratio |
 |-:|-:|-:|
-| insert_random | 0.98x | 0.83x |
-| insert_sorted | 0.74x | 1.11x |
-| find | 1.00x | 1.00x |
-| erase | 2.43x | 1.01x |
-| iteration | 0.69x | 0.97x |
-| mixed | 1.11x | 0.88x |
+| insert_random | 0.98x | 0.86x |
+| insert_sorted | 0.74x | 1.12x |
+| find | 1.00x | 0.97x |
+| erase | 2.43x | 0.97x |
+| iteration | 0.69x | 0.96x |
+| mixed | 1.11x | 0.93x |
 
 # 快速开始
 
