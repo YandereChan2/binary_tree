@@ -4,11 +4,11 @@
 #include <utility>
 #include "cookie_allocator.h"
 
-// AVL 树 POC 通过具名模块使用二叉搜索树基础结构。
-// 本文件仍是普通头文件（不是模块接口单元），但使用它的翻译单元
-// 需要能 import Yc.parent_aware_binary_tree。
-// 标准库头文件都放在 import 之前，避免与模块全局模块片段里的 std 声明重复。
-import Yc.parent_aware_binary_tree;
+// AVL 树 POC 通过标题单元使用二叉搜索树基础结构。
+// 本文件仍是普通头文件（不是模块接口单元），使用它的翻译单元
+// 需要能提供 parent_aware_binary_tree.h 的标题单元（header unit）。
+// 标准库头文件放在 import 之前，保持与普通包含方式一致的包含顺序。
+import "parent_aware_binary_tree.h";
 
 #include "set_common.h"
 
