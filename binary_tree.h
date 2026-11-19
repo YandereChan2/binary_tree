@@ -26,8 +26,8 @@
 #endif
 #endif
 
-#include <memory>
 #include <new>
+#include <memory>
 #include <type_traits>
 #include <functional>
 #include <utility>

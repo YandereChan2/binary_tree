@@ -27,8 +27,8 @@ module;
 // union_data.h 放在这里：它的声明属于全局模块，不会被 export 出去。
 #include <cstddef>
 #include <functional>
-#include <memory>
 #include <new>
+#include <memory>
 #include <type_traits>
 #include <utility>
 #include "union_data.h"

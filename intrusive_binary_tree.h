@@ -49,8 +49,8 @@
 
 #include <cstddef>
 #include <functional>
-#include <memory>
 #include <new>
+#include <memory>
 #include <type_traits>
 #include <utility>
 

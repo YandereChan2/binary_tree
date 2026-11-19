@@ -19,8 +19,8 @@ module;
 // 不会被打包进本模块，也不会被 export 出去。
 #include <cstddef>
 #include <functional>
-#include <memory>
 #include <new>
+#include <memory>
 #include <type_traits>
 #include <utility>
 
